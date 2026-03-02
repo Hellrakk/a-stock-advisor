@@ -523,8 +523,13 @@ class AlphaStockSelector:
         selected_stocks = selected_stocks.sort_values('alpha_score', ascending=False)
         
         # 核心持仓: α得分最高的股票
+        # 检查选股结果
+        if len(selected_stocks) == 0:
+            logger.warning("⚠️ 选股结果为空，无法构建投资组合")
+            return None, {'core': [], 'satellite': [], 'cash': 1.0}
+        
         core_holdings = selected_stocks.head(n_core)
-        core_weight_per_stock = core_ratio / n_core
+        core_weight_per_stock = core_ratio / n_core if n_core > 0 else 0
         
         # 卫星持仓: 行业轮动股票 (可以按行业分散)
         satellite_holdings = selected_stocks.iloc[n_core:n_core + n_satellite]
