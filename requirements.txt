@@ -1,0 +1,30 @@
+# A股量化系统依赖
+# 生成时间: 2026-03-03
+
+# 核心数据处理
+pandas
+numpy
+
+# 数据可视化
+matplotlib
+seaborn
+
+# 科学计算
+scipy
+scikit-learn
+
+# 金融数据获取
+akshare
+tushare
+baostock
+
+# 机器学习
+lightgbm
+xgboost
+
+# 网络请求
+requests
+urllib3
+
+# 系统监控
+psutil

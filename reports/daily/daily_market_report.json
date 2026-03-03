@@ -1,0 +1,35 @@
+{
+  "report_date": "2026-03-03 02:13:30",
+  "limit_down": {
+    "count": 5,
+    "ratio": 0.09,
+    "status": "正常",
+    "level": "info",
+    "threshold": 1000
+  },
+  "limit_up": {
+    "count": 34,
+    "ratio": 0.62
+  },
+  "liquidity": {
+    "status": "正常",
+    "level": "info",
+    "current_amount": 42050562837.0,
+    "avg_amount": NaN,
+    "liquidity_ratio": NaN
+  },
+  "sentiment": {
+    "sentiment": "亢奋",
+    "level": "warning",
+    "limit_up": 34,
+    "limit_down": 5,
+    "ratio": 0.15,
+    "threshold": 5
+  },
+  "extreme_conditions": {
+    "has_extreme": false,
+    "conditions": [],
+    "count": 0
+  },
+  "overall_status": "warning"
+}

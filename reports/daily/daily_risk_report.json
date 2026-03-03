@@ -1,0 +1,34 @@
+{
+  "report_date": "2026-03-03 02:13:30",
+  "risk_indicators": {
+    "volatility": {
+      "volatility": 0,
+      "status": "无持仓",
+      "level": "info",
+      "value": "N/A"
+    },
+    "var": {
+      "var": 0,
+      "status": "无持仓",
+      "level": "info",
+      "value": "N/A"
+    },
+    "max_drawdown": {
+      "max_drawdown": 0,
+      "status": "无持仓",
+      "level": "info",
+      "value": "N/A"
+    }
+  },
+  "industry_deviation": {
+    "deviations": [],
+    "status": "无持仓",
+    "level": "info"
+  },
+  "concentration": {
+    "concentrations": [],
+    "status": "无持仓",
+    "level": "info"
+  },
+  "overall_status": "normal"
+}

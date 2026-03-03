@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-A股量化日报 - 统一推送系统
+A股量化日报 - 统一推送系统（v2.1 - 增强版）
 功能：生成完整的交易协助推送（盘前和日报合并）
+      集成交易执行细节、持仓监控、市场状态监控
 执行时机：工作日8:00（盘前推送）和18:30（日报推送）
 """
 
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'code'))
+sys.path.append(os.path.join(os.path.dirname(__file__)))  # 添加scripts路径以导入监控模块
 
 from datetime import datetime, timedelta
 import logging
@@ -16,6 +18,18 @@ import pickle
 import pandas as pd
 import numpy as np
 import requests
+
+# 导入监控模块
+try:
+    from portfolio_monitor import PortfolioMonitor
+    from market_monitor import MarketMonitor
+    MONITORS_AVAILABLE = True
+    logger = logging.getLogger(__name__)
+    logger.info("监控模块导入成功")
+except Exception as e:
+    logger = logging.getLogger(__name__)
+    logger.error(f"监控模块初始化失败: {e}", exc_info=True)
+    MONITORS_AVAILABLE = False
 
 # 配置日志
 logging.basicConfig(
@@ -29,13 +43,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class UnifiedDailyPusher:
-    """统一日报推送器"""
+    """统一日报推送器（增强版）"""
     
     def __init__(self):
         """初始化"""
         self.config = self._load_config()
         self.push_history_file = 'data/push_history.json'
         self.push_history = self._load_push_history()
+        
+        # 初始化监控模块
+        if MONITORS_AVAILABLE:
+            self.portfolio_monitor = PortfolioMonitor()
+            self.market_monitor = MarketMonitor()
         
     def _load_config(self):
         """加载配置"""
@@ -121,6 +140,43 @@ class UnifiedDailyPusher:
     
     def _load_selection_result(self):
         """加载选股结果"""
+        # 优先使用市场选择器生成的结果
+        try:
+            from multi_source_fetcher import MultiSourceStockFetcher
+            from market_wide_selector import MarketWideStockSelector
+            
+            fetcher = MultiSourceStockFetcher()
+            selector = MarketWideStockSelector(fetcher)
+            
+            core, satellite, ic = selector.run_full_selection(n_core=5, n_satellite=5, max_stock_pool=100)
+            
+            selected_stocks = []
+            rank = 1
+            for stock in core + satellite:
+                selected_stocks.append({
+                    'rank': rank,
+                    'stock_code': stock['code'],
+                    'stock_name': stock['name'],
+                    'score': stock.get('alpha_score', 0),
+                    'reasons': '基于因子得分推荐'
+                })
+                rank += 1
+            
+            fetcher.close()
+            
+            return {
+                'selected_stocks': selected_stocks,
+                'portfolio_config': {
+                    'n': len(selected_stocks),
+                    'rebalance_frequency': 'daily',
+                    'weighting_method': 'equal_weight',
+                    'score_threshold': 0
+                }
+            }
+        except Exception as e:
+            logger.error(f"生成选股结果失败: {e}")
+            
+        # 回退到读取文件
         selection_file = 'data/selection_result.json'
         if os.path.exists(selection_file):
             try:
@@ -141,8 +197,148 @@ class UnifiedDailyPusher:
                 pass
         return None
     
+    def _generate_executable_trade_list(self, selection, stock_data=None, total_capital=1000000):
+        """
+        生成可执行交易清单
+        
+        Args:
+            selection: 选股结果
+            stock_data: 股票数据
+            total_capital: 总资金
+            
+        Returns:
+            交易清单文本
+        """
+        if not selection or 'selected_stocks' not in selection:
+            return None
+        
+        selected_stocks = selection['selected_stocks']
+        if not selected_stocks:
+            return None
+        
+        lines = []
+        lines.append('🎯 可执行交易清单')
+        lines.append('')
+        lines.append('序号 | 股票名称 | 股票代码 | 方向 | 目标权重 | 计划金额(100万) | 价格区间 | 买入时间')
+        lines.append('─' * 100)
+        
+        total_weight = 0
+        total_amount = 0
+        
+        for idx, stock in enumerate(selected_stocks[:10], 1):
+            code = stock.get('code', stock.get('stock_code', 'N/A'))
+            name = stock.get('name', stock.get('stock_name', 'N/A'))
+            
+            # 获取当前价格（如果有数据）
+            current_price = 0
+            price_low = 0
+            price_high = 0
+            
+            if stock_data is not None and len(stock_data) > 0:
+                stock_info = stock_data[stock_data['stock_code'] == code]
+                if len(stock_info) > 0:
+                    current_price = stock_info['close'].iloc[-1]
+                    # 价格区间：开盘价±2%（简化为当前价±2%）
+                    price_low = current_price * 0.98
+                    price_high = current_price * 1.02
+            
+            # 目标权重（等权重，10%每只）
+            target_weight = 10.0
+            planned_amount = int(total_capital * target_weight / 100)
+            
+            direction = '买入'  # 默认买入
+            
+            lines.append(f'{idx} | {name} | {code} | {direction} | {target_weight}% | {planned_amount:,}元 | {price_low:.2f}-{price_high:.2f}元 | 9:30-10:00')
+            
+            total_weight += target_weight
+            total_amount += planned_amount
+        
+        lines.append('─' * 100)
+        lines.append(f'合计 | - | - | - | {total_weight}% | {total_amount:,}元 | - | -')
+        lines.append('')
+        
+        return '\n'.join(lines)
+    
+    def _generate_execution_rules(self):
+        """
+        生成具体执行规则
+        
+        Returns:
+            执行规则文本
+        """
+        lines = []
+        lines.append('⚙️ 具体执行规则')
+        lines.append('')
+        lines.append('止盈规则：')
+        lines.append('• 收益 > 20% → 分3批止盈')
+        lines.append('• 第一批(1/3)：当日14:30-15:00')
+        lines.append('• 第二批(1/3)：次日9:30-10:00')
+        lines.append('• 第三批(1/3)：次日14:30-15:00')
+        lines.append('')
+        lines.append('止损规则：')
+        lines.append('• 亏损 < -10% → 立即清仓（5分钟内）')
+        lines.append('• 滑点容忍：±3%')
+        lines.append('')
+        lines.append('换仓规则：')
+        lines.append('• 时间换仓：持仓>60天 → 评估换仓')
+        lines.append('• 因子换仓：α下降>20% → 建议换仓')
+        lines.append('')
+        
+        return '\n'.join(lines)
+    
+    def _generate_risk_monitoring_section(self):
+        """
+        生成风险监控部分
+        
+        Returns:
+            风险监控文本
+        """
+        lines = ['']
+        
+        if not MONITORS_AVAILABLE:
+            lines.append('⚠️ 风险监控模块不可用')
+            lines.append('')
+            return '\n'.join(lines)
+        
+        # 生成风险报告
+        try:
+            risk_report = self.portfolio_monitor.generate_risk_report()
+            if risk_report:
+                lines.append(self.portfolio_monitor.format_report(risk_report))
+            else:
+                lines.append('⚠️ 风险报告为空，请检查持仓数据')
+        except Exception as e:
+            logger.error(f"风险监控执行异常: {e}", exc_info=True)
+            lines.append('⚠️ 风险监控执行异常，请检查日志')
+        
+        return '\n'.join(lines)
+    
+    def _generate_market_monitoring_section(self):
+        """
+        生成市场状态监控部分
+        
+        Returns:
+            市场状态监控文本
+        """
+        lines = ['']
+        
+        if not MONITORS_AVAILABLE:
+            lines.append('⚠️ 市场监控模块不可用')
+            lines.append('')
+            return '\n'.join(lines)
+        
+        # 生成市场报告
+        try:
+            market_report = self.market_monitor.generate_market_report()
+            lines.append(self.market_monitor.format_report(market_report))
+        except Exception as e:
+            logger.error(f"生成市场报告失败: {e}")
+            lines.append('⚠️ 市场报告生成失败')
+        
+        return '\n'.join(lines)
+    
     def generate_push_content(self, push_type='morning'):
-        """生成推送内容
+        """生成推送内容（增强版）
         
         Args:
             push_type: 'morning'（盘前）或 'evening'（日报）
@@ -160,7 +356,7 @@ class UnifiedDailyPusher:
         
         content.append('━━━━━━━━━━━━━━━━━━━━━━━━')
         content.append(f'📅 推送时间: {now.strftime("%Y-%m-%d %H:%M")}')
-        content.append(f'📌 类型: 实盘推送（含持仓跟踪）')
+        content.append(f'📌 类型: 实盘推送（含持仓跟踪、风险监控）')
         
         # 加载数据
         stock_data, data_date = self._load_stock_data()
@@ -230,89 +426,17 @@ class UnifiedDailyPusher:
         
         content.append('')
         
-        # 3. 今日选股
-        content.append('🎯 今日选股')
+        # 3. 🎯 可执行交易清单（新增）
+        content.append('🎯 可执行交易清单')
         content.append('────────────────────')
         
         selection = self._load_selection_result()
-        if selection and 'selected_stocks' in selection:
-            selected_stocks = selection['selected_stocks']
-            portfolio_config = selection.get('portfolio_config', {})
-            
-            content.append(f'选股结果: {len(selected_stocks)}只股票')
-            content.append('')
-            
-            for idx, stock in enumerate(selected_stocks[:10], 1):
-                code = stock.get('code', stock.get('stock_code', 'N/A'))
-                name = stock.get('name', stock.get('stock_name', 'N/A'))
-                alpha_score = stock.get('alpha_score', 0)
-                
-                # 判断是核心还是卫星
-                is_core = False
-                for core_stock in portfolio_config.get('core', []):
-                    if core_stock.get('code') == code:
-                        is_core = True
-                        break
-                
-                tag = "🔑核心" if is_core else "🌟卫星"
-                content.append(f'{idx}. {tag} {name}({code})')
-                content.append(f'   α得分: {alpha_score:.1f}分')
-        elif stock_data is not None and len(stock_data) > 0:
-            # 如果没有选股结果，基于成交额排序
-            content.append('基于市场活跃度推荐:')
-            content.append('')
-            
-            # 按成交额排序，取前10只
-            top_stocks = stock_data.nlargest(10, 'amount')
-            
-            # 保存选股结果到JSON（用于推送脚本读取）
-            try:
-                selection_data = {
-                    "selected_stocks": [
-                        {
-                            "rank": idx + 1,
-                            "stock_code": stock_code,
-                            "stock_name": row.get('stock_name', 'N/A'),
-                            "score": float(row.get('amount', 0) / 1e8),  # 使用成交额作为分数
-                            "reasons": "基于市场活跃度推荐"
-                        }
-                        for idx, (stock_code, row) in enumerate(top_stocks.iterrows())
-                    ],
-                    "portfolio_config": {
-                        "n": 10,
-                        "rebalance_frequency": "daily",
-                        "weighting_method": "equal_weight",
-                        "score_threshold": 0,
-                        "factor_weights": {}
-                    },
-                    "timestamp": datetime.now().isoformat(),
-                    "data_month": "daily",
-                    "control_summary": {
-                        "industry": "行业分散: N/A",
-                        "volatility": "未应用",
-                        "drawdown": "未应用"
-                    }
-                }
-                
-                selection_file = 'data/selection_result.json'
-                os.makedirs(os.path.dirname(selection_file), exist_ok=True)
-                with open(selection_file, 'w', encoding='utf-8') as f:
-                    json.dump(selection_data, f, ensure_ascii=False, indent=2)
-                print(f"[DEBUG] 选股结果已保存到: {selection_file}")
-            except Exception as e:
-                print(f"[WARNING] 保存选股结果失败: {e}")
-            
-            for idx, (stock_code, row) in enumerate(top_stocks.iterrows(), 1):
-                stock_name = row.get('stock_name', 'N/A')
-                close = row.get('close', 0)
-                change_pct = row.get('change_pct', 0)
-                amount = row.get('amount', 0)
-                
-                emoji = "📈" if change_pct > 0 else ("📉" if change_pct < 0 else "➡️")
-                content.append(f'{idx}. {stock_code} {stock_name}')
-                content.append(f'   {emoji} 收盘: {close:.2f}元 | 涨跌: {change_pct:+.2f}% | 成交: {amount/1e8:.2f}亿')
+        trade_list = self._generate_executable_trade_list(selection, stock_data, total_capital=1000000)
+        
+        if trade_list:
+            content.append(trade_list)
         else:
-            content.append('⚠️ 暂无选股数据')
+            content.append('⚠️ 暂无可执行交易清单')
         
         content.append('')
         
@@ -350,7 +474,18 @@ class UnifiedDailyPusher:
         
         content.append('')
         
-        # 5. 换仓逻辑
+        # 5. ⚙️ 具体执行规则（新增）
+        content.append('⚙️ 具体执行规则')
+        content.append('────────────────────')
+        content.append(self._generate_execution_rules())
+        
+        # 6. 📊 风险监控（新增）
+        content.append(self._generate_risk_monitoring_section())
+        
+        # 7. 🌐 市场状态监控（新增）
+        content.append(self._generate_market_monitoring_section())
+        
+        # 8. 换仓逻辑
         content.append('⚙️ 换仓逻辑')
         content.append('────────────────────')
         content.append('止盈触发: 收益>20% → 分批止盈')
@@ -360,7 +495,7 @@ class UnifiedDailyPusher:
         
         content.append('')
         
-        # 6. 明日计划
+        # 9. 明日计划
         content.append('📅 明日计划')
         content.append('────────────────────')
         content.append('• 监控今日建仓执行情况')
@@ -370,7 +505,7 @@ class UnifiedDailyPusher:
         
         content.append('')
         
-        # 7. 仓位管理
+        # 10. 仓位管理
         content.append('💰 仓位管理建议')
         content.append('────────────────────')
         content.append('• 总仓位: 80%（核心60%+卫星20%）')
@@ -380,7 +515,7 @@ class UnifiedDailyPusher:
         
         content.append('')
         
-        # 8. 风控规则
+        # 11. 风控规则
         content.append('⚠️ 风控规则')
         content.append('────────────────────')
         content.append('• 单股止损线: -10%')
@@ -392,7 +527,7 @@ class UnifiedDailyPusher:
         
         content.append('━━━━━━━━━━━━━━━━━━━━━━━━')
         content.append('📊 数据来源: AKShare A股实时数据')
-        content.append(f'🦞 A股量化系统 v2.0 | {today}')
+        content.append(f'🦞 A股量化系统 v2.1 | {today}')
         
         push_content = '\n'.join(content)
         
@@ -478,7 +613,7 @@ def main():
     """主函数"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='A股量化日报统一推送系统')
+    parser = argparse.ArgumentParser(description='A股量化日报统一推送系统（增强版）')
     parser.add_argument('--type', choices=['morning', 'evening'], default='morning',
                        help='推送类型: morning(盘前), evening(日报)')
     

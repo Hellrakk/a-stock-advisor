@@ -6,13 +6,19 @@
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+# 确保可以找到同目录的模块
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, script_dir)
+project_root = os.path.dirname(script_dir)
+sys.path.insert(0, project_root)
 
 from datetime import datetime
 import logging
 import json
 import time
 import subprocess
+
 from is_trading_day import TradingDayChecker
 
 # 配置日志
@@ -32,6 +38,9 @@ class PushMonitor:
 
     def __init__(self):
         """初始化监控器"""
+        # 切换到项目根目录
+        os.chdir(project_root)
+
         self.today = datetime.now().strftime('%Y-%m-%d')
         self.trading_checker = TradingDayChecker()
 
@@ -101,7 +110,7 @@ class PushMonitor:
 
         try:
             # 使用subprocess调用auto_push_system.py
-            script_path = os.path.join(os.path.dirname(__file__), 'auto_push_system.py')
+            script_path = os.path.join(script_dir, 'auto_push_system.py')
             cmd = [sys.executable, script_path]
 
             logger.info(f"执行命令: {' '.join(cmd)}")
@@ -210,7 +219,7 @@ class PushMonitor:
             logger.warning("⚠️ 飞书配置不存在，推送可能失败")
 
         # 检查脚本
-        script_path = os.path.join(os.path.dirname(__file__), 'auto_push_system.py')
+        script_path = os.path.join(script_dir, 'auto_push_system.py')
         if os.path.exists(script_path):
             checks['script_exists'] = True
             logger.info("✓ 自动推送脚本存在")

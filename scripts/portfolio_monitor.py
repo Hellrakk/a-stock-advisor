@@ -56,7 +56,7 @@ class PortfolioMonitor:
             波动率信息字典
         """
         if not portfolio.get('positions'):
-            return {'volatility': 0, 'status': '无持仓', 'level': 'info'}
+            return {'volatility': 0, 'status': '无持仓', 'level': 'info', 'value': 'N/A'}
 
         positions = portfolio['positions']
 
@@ -66,7 +66,7 @@ class PortfolioMonitor:
         total_weight = sum(weights)
 
         if total_weight == 0:
-            return {'volatility': 0, 'status': '空仓', 'level': 'info'}
+            return {'volatility': 0, 'status': '空仓', 'level': 'info', 'value': 'N/A'}
 
         weights = [w / total_weight for w in weights]
 
@@ -133,7 +133,7 @@ class PortfolioMonitor:
             VaR信息字典
         """
         if not portfolio.get('positions'):
-            return {'var': 0, 'status': '无持仓', 'level': 'info'}
+            return {'var': 0, 'status': '无持仓', 'level': 'info', 'value': 'N/A'}
 
         positions = portfolio['positions']
 
@@ -143,7 +143,7 @@ class PortfolioMonitor:
         total_weight = sum(weights)
 
         if total_weight == 0:
-            return {'var': 0, 'status': '空仓', 'level': 'info'}
+            return {'var': 0, 'status': '空仓', 'level': 'info', 'value': 'N/A'}
 
         weights = [w / total_weight for w in weights]
 
@@ -340,7 +340,7 @@ class PortfolioMonitor:
             最大回撤信息
         """
         if not portfolio.get('positions'):
-            return {'max_drawdown': 0, 'status': '无持仓', 'level': 'info'}
+            return {'max_drawdown': 0, 'status': '无持仓', 'level': 'info', 'value': 'N/A'}
 
         positions = portfolio['positions']
 
@@ -350,7 +350,7 @@ class PortfolioMonitor:
         total_weight = sum(weights)
 
         if total_weight == 0:
-            return {'max_drawdown': 0, 'status': '空仓', 'level': 'info'}
+            return {'max_drawdown': 0, 'status': '空仓', 'level': 'info', 'value': 'N/A'}
 
         weights = [w / total_weight for w in weights]
 
@@ -493,7 +493,8 @@ class PortfolioMonitor:
         lines.append('一、风险指标')
         risk = report['risk_indicators']
         lines.append(f"• 组合波动率：{risk['volatility']['value']}（{risk['volatility']['status']}）")
-        lines.append(f"• VaR({risk['var']['confidence']}）：{risk['var']['value']}（{risk['var']['status']}）")
+        var_confidence = risk['var'].get('confidence', '95%')
+        lines.append(f"• VaR({var_confidence}）：{risk['var']['value']}（{risk['var']['status']}）")
         drawdown_val = risk['max_drawdown'].get('value', '0%')
         drawdown_status = risk['max_drawdown'].get('status', 'N/A')
         lines.append(f"• 最大回撤：{drawdown_val}（{drawdown_status}）")
@@ -501,15 +502,23 @@ class PortfolioMonitor:
 
         # 行业偏离度
         lines.append('二、行业偏离度')
-        for dev in report['industry_deviation']['deviations'][:3]:
-            sign = '+' if dev['deviation'] > 0 else ''
-            lines.append(f"• {dev['industry']}：{sign}{dev['deviation']}%（{dev['status']}）")
+        deviations = report['industry_deviation'].get('deviations', [])
+        if deviations:
+            for dev in deviations[:3]:
+                sign = '+' if dev['deviation'] > 0 else ''
+                lines.append(f"• {dev['industry']}：{sign}{dev['deviation']}%（{dev['status']}）")
+        else:
+            lines.append(f"• {report['industry_deviation'].get('status', '无数据')}")
         lines.append('')
 
         # 个股集中度
         lines.append('三、个股集中度')
-        for conc in report['concentration']['concentrations'][:3]:
-            lines.append(f"• {conc['name']}：{conc['weight']}%（{conc['status']}）")
+        concentrations = report['concentration'].get('concentrations', [])
+        if concentrations:
+            for conc in concentrations[:3]:
+                lines.append(f"• {conc['name']}：{conc['weight']}%（{conc['status']}）")
+        else:
+            lines.append(f"• {report['concentration'].get('status', '无数据')}")
         lines.append('')
 
         return '\n'.join(lines)

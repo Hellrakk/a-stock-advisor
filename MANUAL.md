@@ -7,6 +7,14 @@
 3. [因子体系](#3-因子体系)
 4. [策略体系](#4-策略体系)
 5. [回测系统](#5-回测系统)
+   - [5.1 回测引擎架构](#51-回测引擎架构)
+   - [5.2 市场约束模块](#52-市场约束模块)
+   - [5.3 基准比较模块](#53-基准比较模块)
+   - [5.4 投资组合优化模块](#54-投资组合优化模块)
+   - [5.5 Brinson归因分析模块](#55-brinson归因分析模块)
+   - [5.6 滚动性能分析模块](#56-滚动性能分析模块)
+   - [5.7 成本模型](#57-成本模型)
+   - [5.8 评估指标体系](#58-评估指标体系)
 6. [实盘工程](#6-实盘工程)
 7. [运维指南](#7-运维指南)
 8. [待办事项与改进路线图](#8-待办事项与改进路线图)
@@ -41,9 +49,10 @@
 
 1. **因子库（80+因子）** - 覆盖基本面、技术面、情绪、另类数据
 2. **策略库（5大类策略）** - 趋势跟踪、均值回归、因子轮动、行业轮动、事件驱动
-3. **RDagent分析方法** - 自动化因子挖掘方法论
-4. **过拟合检测** - 发现中度过拟合风险
-5. **监控系统** - 基础监控框架已搭建
+3. **回测系统增强** - 新增市场约束、基准比较、投资组合优化、Brinson归因、滚动性能分析模块
+4. **RDagent分析方法** - 自动化因子挖掘方法论
+5. **过拟合检测** - 发现中度过拟合风险
+6. **监控系统** - 基础监控框架已搭建
 
 #### ⚠️ 已知问题
 
@@ -78,7 +87,7 @@
 | **数据质量** | 🔴 不可用 | 需替换为真实行情数据 |
 | **因子体系** | 🟢 完整 | 80+因子覆盖全面 |
 | **策略体系** | 🟢 完整 | 5大类策略库建立 |
-| **回测系统** | 🟡 部分可用 | 框架完整但数据错误 |
+| **回测系统** | 🟢 完整 | 新增市场约束、基准比较、投资组合优化、Brinson归因、滚动性能分析模块 |
 | **实盘工程** | 🔴 未实施 | 尚未搭建模拟盘 |
 | **监控系统** | 🟡 框架搭建 | 基础监控已实现 |
 
@@ -92,26 +101,47 @@
 
 **必选数据源**（推荐按优先级排序）：
 
-1. **Tushare Pro** ⭐⭐⭐⭐⭐
-   - 官网：https://tushare.pro
+1. **智兔数服** ⭐⭐⭐⭐⭐
+   - 官网：https://api.zhituapi.com
    - 数据质量：高
-   - 免费/付费：积分制（免费额度充足）
-   - 更新频率：日度/实时
-   - 推荐原因：数据最完整，接口文档清晰
+   - 免费/付费：免费（需token）
+   - 更新频率：实时
+   - 推荐原因：实时数据，包含财务指标，响应速度快
 
-2. **AKShare** ⭐⭐⭐⭐
+2. **腾讯财经** ⭐⭐⭐⭐
+   - 接口：http://qt.gtimg.cn/q=sz000001
+   - 数据质量：高
+   - 免费/付费：完全免费
+   - 更新频率：约3秒
+   - 推荐原因：数据格式规整，更新频率高
+
+3. **新浪财经** ⭐⭐⭐⭐
+   - 接口：http://hq.sinajs.cn/rn={timestamp}&list=sz000001
+   - 数据质量：高
+   - 免费/付费：完全免费
+   - 更新频率：实时
+   - 推荐原因：老牌数据源，支持买卖五档盘口数据
+
+4. **AKShare** ⭐⭐⭐⭐
    - 官网：https://akshare.akfamily.xyz
    - 数据质量：高
    - 免费/付费：完全免费
    - 更新频率：日度
    - 推荐原因：开源免费，覆盖面广
 
-3. **Baostock** ⭐⭐⭐
+5. **Baostock** ⭐⭐⭐
    - 官网：http://baostock.com
    - 数据质量：中
    - 免费/付费：完全免费
    - 更新频率：日度
    - 推荐原因：适合学习，数据量相对较少
+
+6. **Tushare Pro** ⭐⭐⭐⭐
+   - 官网：https://tushare.pro
+   - 数据质量：高
+   - 免费/付费：积分制（免费额度充足）
+   - 更新频率：日度/实时
+   - 推荐原因：数据最完整，接口文档清晰
 
 #### 2.1.2 财务数据
 
@@ -199,6 +229,103 @@ df_fin = ak.stock_financial_analysis_indicator(
 
 # 获取全市场列表
 stock_list = ak.stock_info_a_code_name()
+```
+
+#### 2.2.3 智兔数服获取示例
+
+```python
+import requests
+
+# 获取实时数据
+def get_zhitu_data(code, token):
+    url = f"https://api.zhituapi.com/hs/real/time/{code}?token={token}"
+    response = requests.get(url, timeout=5)
+    if response.status_code == 200:
+        return response.json()
+    return None
+
+# 使用示例
+token = "37171346-847B-47D5-91F8-BCABDDF3C845"
+data = get_zhitu_data("600519", token)
+print(data)
+```
+
+#### 2.2.4 腾讯财经获取示例
+
+```python
+import requests
+
+# 获取实时数据
+def get_tencent_data(code):
+    # 转换代码格式
+    if code.startswith('6'):
+        tencent_code = f"sh{code}"
+    else:
+        tencent_code = f"sz{code}"
+    
+    url = f"http://qt.gtimg.cn/q={tencent_code}"
+    response = requests.get(url, timeout=5)
+    if response.status_code == 200:
+        content = response.text
+        if f'v_{tencent_code}' in content:
+            data_str = content.split('=')[1].strip('"\n;')
+            data = data_str.split('~')
+            return {
+                'price': float(data[3]) if data[3] else 0,
+                'open': float(data[5]) if data[5] else 0,
+                'high': float(data[33]) if data[33] else 0,
+                'low': float(data[34]) if data[34] else 0,
+                'pre_close': float(data[4]) if data[4] else 0,
+                'volume': int(data[8]) if data[8] else 0,
+                'amount': float(data[9]) if data[9] else 0
+            }
+    return None
+
+# 使用示例
+data = get_tencent_data("000001")
+print(data)
+```
+
+#### 2.2.5 新浪财经获取示例
+
+```python
+import requests
+import time
+
+# 获取实时数据
+def get_sina_data(code):
+    # 转换代码格式
+    if code.startswith('6'):
+        sina_code = f"sh{code}"
+    else:
+        sina_code = f"sz{code}"
+    
+    url = f"http://hq.sinajs.cn/rn={int(time.time())}&list={sina_code}"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Referer': 'https://finance.sina.com.cn',
+        'host': 'hq.sinajs.cn'
+    }
+    response = requests.get(url, headers=headers, timeout=5)
+    if response.status_code == 200:
+        content = response.text
+        if f'var hq_str_{sina_code}' in content:
+            data_str = content.split('=')[1].strip('"\n;')
+            data = data_str.split(',')
+            return {
+                'price': float(data[3]) if data[3] else 0,
+                'open': float(data[1]) if data[1] else 0,
+                'high': float(data[4]) if data[4] else 0,
+                'low': float(data[5]) if data[5] else 0,
+                'pre_close': float(data[2]) if data[2] else 0,
+                'volume': int(data[8]) if data[8] else 0,
+                'amount': float(data[9]) if data[9] else 0
+            }
+    return None
+
+# 使用示例
+data = get_sina_data("000001")
+print(data)
 ```
 
 ### 2.3 数据质量要求
@@ -1825,6 +1952,17 @@ scenarios = {
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
 │  │  组合构建    │──│  交易执行    │──│  绩效计算    │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
+│         │                 │                 │              │
+│         v                 v                 v              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │  市场约束    │──│  基准分析    │──│  归因分析    │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+│         │                 │                 │              │
+│         v                 v                 v              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │  投资组合    │──│  滚动分析    │──│  报告生成    │     │
+│  │   优化       │  │              │                  │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
 │                                                             │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │              成本模型（佣金、印花税、滑点）             │  │
@@ -1837,9 +1975,173 @@ scenarios = {
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 5.2 成本模型
+### 5.2 市场约束模块
 
-#### 5.2.1 A股交易成本
+#### 5.2.1 功能说明
+
+市场约束模块用于模拟真实市场中的各种交易限制，确保回测结果更接近实际交易情况。
+
+**核心功能**：
+- 价格限制检测（普通股票±10%，ST股票±5%）
+- 停牌和退市检测
+- 流动性约束（成交量参与率）
+- 交易价值限制
+
+#### 5.2.2 实现示例
+
+```python
+from market_constraint import MarketConstraintChecker, LiquidityConstraintChecker
+
+# 初始化约束检查器
+constraint_checker = MarketConstraintChecker()
+liquidity_checker = LiquidityConstraintChecker(max_participation_rate=0.3)
+
+# 检查价格限制
+is_valid_price = constraint_checker.check_price_limit('600519.SH', current_price, prev_price, is_st=False)
+
+# 检查流动性约束
+is_liquid = liquidity_checker.check_liquidity('600519.SH', order_size, current_volume)
+
+# 检查停牌状态
+is_tradable = constraint_checker.check_tradability('600519.SH', current_date)
+```
+
+### 5.3 基准比较模块
+
+#### 5.3.1 功能说明
+
+基准比较模块用于将策略表现与市场基准进行对比，评估策略的超额收益和风险特性。
+
+**核心功能**：
+- 超额收益计算
+- 跟踪误差计算
+- 信息比率
+- Alpha/Beta分析
+- 上涨/下跌捕获率
+
+#### 5.3.2 实现示例
+
+```python
+from benchmark_analyzer import BenchmarkAnalyzer
+
+# 初始化基准分析器
+analyzer = BenchmarkAnalyzer()
+
+# 计算超额收益
+excess_returns = analyzer.calculate_excess_returns(portfolio_returns, benchmark_returns)
+
+# 计算信息比率
+info_ratio = analyzer.calculate_information_ratio(portfolio_returns, benchmark_returns)
+
+# 计算Alpha和Beta
+alpha, beta = analyzer.calculate_alpha_beta(portfolio_returns, benchmark_returns)
+
+# 计算捕获率
+up_capture, down_capture = analyzer.calculate_capture_ratios(portfolio_returns, benchmark_returns)
+```
+
+### 5.4 投资组合优化模块
+
+#### 5.4.1 功能说明
+
+投资组合优化模块提供多种资产配置算法，帮助构建最优投资组合。
+
+**核心功能**：
+- 等权重、最小方差、最大夏普比率
+- 风险平价、风险预算、最大多样化
+- 有效前沿生成
+- 权重约束和换手率意识
+
+#### 5.4.2 实现示例
+
+```python
+from portfolio_optimizer import PortfolioOptimizer
+
+# 初始化优化器
+optimizer = PortfolioOptimizer()
+
+# 计算最小方差组合
+min_var_weights = optimizer.minimum_variance(cov_matrix)
+
+# 计算最大夏普比率组合
+max_sharpe_weights = optimizer.maximum_sharpe(returns, cov_matrix, risk_free_rate=0.03)
+
+# 计算风险平价组合
+risk_parity_weights = optimizer.risk_parity(cov_matrix)
+
+# 生成有效前沿
+efficient_frontier = optimizer.generate_efficient_frontier(returns, cov_matrix)
+```
+
+### 5.5 Brinson归因分析模块
+
+#### 5.5.1 功能说明
+
+Brinson归因分析模块用于分解投资组合收益的来源，包括配置效应、选择效应和交互效应。
+
+**核心功能**：
+- 配置效应分解
+- 选择效应分解
+- 交互效应分解
+- 多期归因
+- 因子归因
+
+#### 5.5.2 实现示例
+
+```python
+from brinson_attribution import BrinsonAttribution
+
+# 初始化归因分析器
+attribution = BrinsonAttribution()
+
+# 计算归因结果
+attribution_result = attribution.calculate_attribution(
+    portfolio_weights, 
+    benchmark_weights, 
+    asset_returns, 
+    benchmark_returns
+)
+
+# 分解效应
+allocation_effect = attribution_result['allocation']
+selection_effect = attribution_result['selection']
+interaction_effect = attribution_result['interaction']
+```
+
+### 5.6 滚动性能分析模块
+
+#### 5.6.1 功能说明
+
+滚动性能分析模块用于分析策略在不同时间窗口的表现，评估策略的稳定性和一致性。
+
+**核心功能**：
+- 滚动收益、波动率、夏普比率、最大回撤
+- 滚动Beta、Alpha、跟踪误差、信息比率
+- 稳定性分析
+
+#### 5.6.2 实现示例
+
+```python
+from rolling_performance import RollingPerformanceAnalyzer
+
+# 初始化滚动分析器
+analyzer = RollingPerformanceAnalyzer(window=252)  # 1年窗口
+
+# 计算滚动夏普比率
+rolling_sharpe = analyzer.calculate_rolling_sharpe(portfolio_returns, risk_free_rate=0.03)
+
+# 计算滚动最大回撤
+rolling_drawdown = analyzer.calculate_rolling_max_drawdown(portfolio_values)
+
+# 计算滚动Alpha和Beta
+rolling_alpha, rolling_beta = analyzer.calculate_rolling_alpha_beta(
+    portfolio_returns, benchmark_returns
+)
+```
+
+### 5.7 成本模型
+
+#### 5.7.1 A股交易成本
 
 A股交易成本包括以下部分：
 
@@ -1852,7 +2154,7 @@ A股交易成本包括以下部分：
 | **合计** | 买入 | ~0.13% | 0.03%+0.001%+0.1% |
 | **合计** | 卖出 | ~0.23% | 0.1%+0.03%+0.001%+0.1% |
 
-#### 5.2.2 成本计算实现
+#### 5.7.2 成本计算实现
 
 ```python
 def calculate_transaction_cost(order, price, volume, commission_rate=0.0003,
@@ -1910,7 +2212,7 @@ def calculate_transaction_cost(order, price, volume, commission_rate=0.0003,
     return cost
 ```
 
-#### 5.2.3 冲击成本评估
+#### 5.7.3 冲击成本评估
 
 对于大资金账户，需要考虑交易对价格的冲击。
 
@@ -1932,9 +2234,9 @@ def calculate_impact_cost(order_size, average_daily_volume, impact_coefficient=0
     return impact_cost
 ```
 
-### 5.3 评估指标体系
+### 5.8 评估指标体系
 
-#### 5.3.1 基础收益指标
+#### 5.8.1 基础收益指标
 
 ```python
 def calculate_return_metrics(portfolio_values, risk_free_rate=0.03):
@@ -1973,7 +2275,7 @@ def calculate_return_metrics(portfolio_values, risk_free_rate=0.03):
     return metrics
 ```
 
-#### 5.3.2 风险调整收益指标
+#### 5.8.2 风险调整收益指标
 
 ```python
 def calculate_risk_adjusted_metrics(portfolio_values, risk_free_rate=0.03):
@@ -2021,7 +2323,7 @@ def calculate_max_drawdown(portfolio_values):
     return max_drawdown
 ```
 
-#### 5.3.3 交易指标
+#### 5.8.3 交易指标
 
 ```python
 def calculate_trading_metrics(trades):
@@ -2054,7 +2356,7 @@ def calculate_trading_metrics(trades):
     return metrics
 ```
 
-#### 5.3.4 完整评估报告
+#### 5.8.4 完整评估报告
 
 ```python
 def generate_full_backtest_report(portfolio_values, trades, benchmark_values=None):

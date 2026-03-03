@@ -52,7 +52,7 @@ def mark_pushed_today():
 def run_push():
     """执行推送脚本"""
     try:
-        script_path = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor/scripts/paper_trading_push.py'
+        script_path = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor/scripts/a_stock_push_v5.py'
         
         logger.info("触发盘前推送...")
         result = subprocess.run(
