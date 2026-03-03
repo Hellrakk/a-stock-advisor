@@ -260,6 +260,64 @@ class ZhituDataSource:
         return {}
 
 
+class EastMoneyDataSource:
+    """东方财富数据源"""
+    
+    def __init__(self):
+        self.name = "EastMoney"
+        self.is_available = False
+    
+    def test_connection(self) -> bool:
+        try:
+            import requests
+            url = "http://push2.eastmoney.com/api/qt/stock/get?secid=1.600519&fields=f43,f44,f45,f46,f51,f52"
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if 'data' in data:
+                    self.is_available = True
+                    logger.info(f"  ✓ 东方财富连接成功")
+                    return True
+        except Exception as e:
+            logger.warning(f"  ✗ 东方财富连接失败: {e}")
+        return False
+    
+    def get_stock_realtime(self, code: str) -> Dict:
+        """获取实时数据"""
+        try:
+            import requests
+            # 转换代码格式
+            if code.startswith('6'):
+                secid = f"1.{code}"
+            else:
+                secid = f"0.{code}"
+            
+            url = f"http://push2.eastmoney.com/api/qt/stock/get?secid={secid}&fields=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,f15,f16,f17,f18,f20,f21,f22,f23,f24,f25,f26,f27,f28,f29,f30,f31,f32,f33,f34,f35,f36,f37,f38,f39,f40,f41,f42,f43,f44,f45,f46,f47,f48,f49,f50,f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65"
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if 'data' in data:
+                    data = data['data']
+                    return {
+                        'price': float(data.get('f2', 0)),
+                        'open': float(data.get('f17', 0)),
+                        'high': float(data.get('f15', 0)),
+                        'low': float(data.get('f16', 0)),
+                        'pre_close': float(data.get('f18', 0)),
+                        'change_pct': float(data.get('f3', 0)),
+                        'change_amt': float(data.get('f4', 0)),
+                        'volume': int(data.get('f5', 0)),
+                        'amount': float(data.get('f6', 0)),
+                        'turnover_rate': float(data.get('f8', 0)),
+                        'pe_ttm': float(data.get('f9', 0)),
+                        'pb': float(data.get('f23', 0)),
+                        'market_cap': float(data.get('f20', 0)) / 100000000 if data.get('f20') else 0
+                    }
+        except Exception as e:
+            logger.warning(f"  东方财富获取{code}失败: {e}")
+        return {}
+
+
 class MultiSourceStockFetcher:
     """多数据源股票数据获取器"""
     
@@ -339,10 +397,12 @@ class MultiSourceStockFetcher:
         self.zhitu_available = False
         self.tencent_available = False
         self.sina_available = False
+        self.eastmoney_available = False
         self.tushare_source = None
         self.zhitu_source = None
         self.tencent_source = None
         self.sina_source = None
+        self.eastmoney_source = None
         self.bs = None
         self._stock_info_cache = {}
         self._industry_cache = {}
@@ -381,6 +441,9 @@ class MultiSourceStockFetcher:
         
         # 初始化新浪财经
         self._init_sina()
+        
+        # 初始化东方财富
+        self._init_eastmoney()
         
     def _init_tushare(self):
         """初始化Tushare数据源"""
@@ -435,6 +498,19 @@ class MultiSourceStockFetcher:
         except Exception as e:
             logger.warning(f"新浪财经初始化失败: {e}")
             self.sina_available = False
+    
+    def _init_eastmoney(self):
+        """初始化东方财富数据源"""
+        try:
+            self.eastmoney_source = EastMoneyDataSource()
+            self.eastmoney_available = self.eastmoney_source.test_connection()
+            self.metadata['sources_tested'].append({
+                'name': "EastMoney",
+                'available': self.eastmoney_available
+            })
+        except Exception as e:
+            logger.warning(f"东方财富初始化失败: {e}")
+            self.eastmoney_available = False
     
     def get_stock_list(self) -> pd.DataFrame:
         """获取股票列表"""
@@ -798,6 +874,34 @@ class MultiSourceStockFetcher:
                     return result
             except Exception as e:
                 logger.warning(f"新浪财经获取{code}失败: {e}")
+        
+        # 尝试东方财富
+        if self.eastmoney_available and self.eastmoney_source:
+            try:
+                eastmoney_data = self.eastmoney_source.get_stock_realtime(pure_code)
+                if eastmoney_data.get('price', 0) > 0:
+                    result['price'] = eastmoney_data['price']
+                    result['open'] = eastmoney_data['open']
+                    result['high'] = eastmoney_data['high']
+                    result['low'] = eastmoney_data['low']
+                    result['pre_close'] = eastmoney_data['pre_close']
+                    result['change_pct'] = eastmoney_data['change_pct']
+                    result['change_amt'] = eastmoney_data['change_amt']
+                    result['volume'] = eastmoney_data['volume']
+                    result['amount'] = eastmoney_data['amount']
+                    result['turnover_rate'] = eastmoney_data['turnover_rate']
+                    result['pe_ttm'] = eastmoney_data['pe_ttm']
+                    result['pb'] = eastmoney_data['pb']
+                    result['market_cap'] = eastmoney_data['market_cap']
+                    logger.info(f"✓ 东方财富获取{pure_code}成功: {result['price']}元")
+                    # 缓存数据
+                    self._realtime_data_cache[cache_key] = {
+                        'timestamp': current_time,
+                        'data': result.copy()
+                    }
+                    return result
+            except Exception as e:
+                logger.warning(f"东方财富获取{code}失败: {e}")
         
         # 尝试AKShare
         if self.akshare_available:

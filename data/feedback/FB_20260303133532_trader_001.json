@@ -1,0 +1,10 @@
+{
+  "feedback_id": "FB_20260303133532_trader_001",
+  "trader_id": "trader_001",
+  "timestamp": "2026-03-03 13:35:32",
+  "feedback": {
+    "type": "system",
+    "content": "系统运行良好，建议增加更多数据源",
+    "rating": 5
+  }
+}

@@ -142,7 +142,18 @@ a-stock-advisor/
 │   ├── risk_controller.py         # 风控系统
 │   ├── innovation_lab.py          # 因子创新实验室
 │   ├── overfitting_detection.py   # 过拟合检测
-│   └── backtest_engine_v2.py      # 回测引擎V2
+│   ├── backtest_engine_v2.py      # 回测引擎V2
+│   ├── system/                    # 系统管理
+│   │   └── system_manager.py      # 系统管理器（含插件系统）
+│   ├── data/                      # 数据处理
+│   │   ├── multi_source_fetcher.py     # 多数据源获取
+│   │   └── data_quality_framework.py   # 数据质量框架
+│   ├── backtest/                  # 回测系统
+│   │   ├── backtest_engine_v2.py       # 回测引擎V2
+│   │   └── real_time_trading.py        # 实时交易接口
+│   ├── risk/                      # 风险管理
+│   │   ├── fund_management.py          # 资金管理系统
+│   │   └── risk_calculator.py          # 风险计算
 ├── scripts/                   # 执行脚本
 │   ├── a_stock_push_v5.py         # 日报推送系统v5
 │   ├── a_stock_daily_report.py    # 日报推送系统
@@ -322,6 +333,73 @@ engine.start()
 engine.put(Event(EventType.MARKET_DATA, market_data))
 ```
 
+### 9. 系统管理器（v5.0新增）
+
+**核心功能：**
+- 统一管理系统组件
+- 提供插件系统
+- 配置管理
+- 系统健康检查
+- 数据处理管道
+- 系统状态报告
+
+**使用示例：**
+```python
+from system.system_manager import SystemManager, DataPipeline
+
+# 创建系统管理器
+system_manager = SystemManager()
+
+# 注册组件
+system_manager.register_component('data_fetcher', MultiSourceFetcher())
+system_manager.register_component('backtest_engine', BacktestEngineV2())
+
+# 启动系统
+system_manager.start()
+
+# 运行健康检查
+health_status = system_manager.health_check()
+
+# 生成系统报告
+system_manager.save_system_report()
+
+# 关闭系统
+system_manager.shutdown()
+```
+
+### 10. 数据处理管道（v5.0新增）
+
+**核心功能：**
+- 模块化数据处理步骤
+- 可配置的处理流程
+- 错误处理和日志记录
+- 灵活的步骤添加和管理
+
+**使用示例：**
+```python
+from system.system_manager import DataPipeline
+
+# 创建数据处理管道
+pipeline = DataPipeline(system_manager)
+
+# 添加处理步骤
+def fetch_data_step(data):
+    fetcher = system_manager.get_component('data_fetcher')
+    # 获取数据
+    return data
+
+def quality_check_step(data):
+    quality_framework = system_manager.get_component('data_quality')
+    # 数据质量检查
+    return data
+
+pipeline.add_step('fetch_data', fetch_data_step)
+pipeline.add_step('quality_check', quality_check_step)
+
+# 运行管道
+result = pipeline.run({})
+```
+
 ---
 
 ## 📊 数据源
@@ -449,6 +527,10 @@ engine.put(Event(EventType.MARKET_DATA, market_data))
 - ✅ 开源项目融合方案（Qlib、QUANTAXIS、VNPy、Abu等）
 - ✅ ML因子组合模块（ml_factor_combiner.py）
 - ✅ 事件驱动引擎（event_engine.py）
+- ✅ 系统管理器（system_manager.py）- 统一管理系统组件、插件系统、配置管理
+- ✅ 数据处理管道（DataPipeline）- 模块化数据处理流程
+- ✅ 资金管理系统（fund_management.py）- 智能资金分配和风险预算
+- ✅ 实时交易接口（real_time_trading.py）- 模拟交易和订单管理
 - ✅ 股票代码格式修复（修正为正确格式如sh600064）
 - ✅ 价格信息显示修复（显示真实价格区间）
 - ✅ 系统性能优化（限制股票池大小，提高响应速度）

@@ -1,0 +1,96 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>交易报表 - 2024-01-01 至 2024-01-07</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2, h3 { color: #333; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .summary { background-color: #f9f9f9; padding: 15px; margin: 20px 0; }
+        .positive { color: green; }
+        .negative { color: red; }
+    </style>
+</head>
+<body>
+    <h1>交易报表</h1>
+    <h2>2024-01-01 至 2024-01-07</h2>
+    
+    <div class="summary">
+        <h3>摘要</h3>
+        <p>总持仓数: 2</p>
+        <p>总资产: ¥1,000,000.00</p>
+        <p>现金: ¥815,000.00</p>
+        <p>总盈亏: <span class="positive">
+            ¥0.00
+        </span></p>
+        <p>当日交易: 2 笔 (买入: 2, 卖出: 0)</p>
+    </div>
+    
+    <h3>持仓情况</h3>
+    <table>
+        <tr>
+            <th>股票代码</th>
+            <th>持仓数量</th>
+            <th>平均成本</th>
+            <th>市值</th>
+        </tr>
+
+        <tr>
+            <td>600519</td>
+            <td>100</td>
+            <td>¥1,800.00</td>
+            <td>¥180,000.00</td>
+        </tr>
+
+        <tr>
+            <td>000001</td>
+            <td>500</td>
+            <td>¥10.00</td>
+            <td>¥5,000.00</td>
+        </tr>
+
+    </table>
+    
+    <h3>交易记录</h3>
+    <table>
+        <tr>
+            <th>时间</th>
+            <th>股票代码</th>
+            <th>方向</th>
+            <th>价格</th>
+            <th>数量</th>
+            <th>金额</th>
+        </tr>
+
+        <tr>
+            <td>09:30:00</td>
+            <td>600519</td>
+            <td>买入</td>
+            <td>¥1,800.00</td>
+            <td>100</td>
+            <td>¥180,000.00</td>
+        </tr>
+
+        <tr>
+            <td>10:30:00</td>
+            <td>000001</td>
+            <td>买入</td>
+            <td>¥10.00</td>
+            <td>500</td>
+            <td>¥5,000.00</td>
+        </tr>
+
+    </table>
+
+    <h3>周度分析</h3>
+    <div class="summary">
+        <p>总交易次数: 2</p>
+        <p>最活跃交易日: 2026-03-03</p>
+    </div>
+
+</body>
+</html>

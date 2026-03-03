@@ -40,8 +40,15 @@ QUALITY_THRESHOLDS = {
     'min_price': 1.0,                  # 最低股价
     'max_price': 3000.0,               # 最高股价
     'min_volume': 0,                   # 最小成交量
-    'min_amount': 1000000,            # 最小成交额（100万）
+    'min_amount': 1000000,             # 最小成交额（100万）
     'min_data_records_per_stock': 100, # 每只股票最少记录数
+    'max_turnover_rate': 100.0,        # 最大换手率（100%）
+    'max_pe_ttm': 1000.0,              # 最大市盈率
+    'min_pe_ttm': 0.1,                 # 最小市盈率
+    'max_pb': 50.0,                    # 最大市净率
+    'min_pb': 0.1,                     # 最小市净率
+    'max_roe': 100.0,                  # 最大ROE
+    'min_roe': -50.0,                  # 最小ROE
 }
 
 # 标准字段名称
@@ -140,7 +147,7 @@ class DataQualityChecker:
                         )
 
     def _check_outliers(self, data: pd.DataFrame):
-        """检查异常值：涨跌停、不合理价格、成交量"""
+        """检查异常值：涨跌停、不合理价格、成交量、财务指标"""
         logger.info("  🔍 检查异常值...")
 
         outlier_count = 0
@@ -174,6 +181,51 @@ class DataQualityChecker:
             zero_volume = (data['volume'] == 0).sum()
             if zero_volume > 0:
                 self.report.warnings.append(f"零成交量记录: {zero_volume} 条")
+
+        # 检查成交额异常
+        if 'amount' in data.columns:
+            low_amount = (data['amount'] < self.thresholds['min_amount']).sum()
+            if low_amount > 0:
+                self.report.warnings.append(f"低成交额记录 (<{self.thresholds['min_amount']}): {low_amount} 条")
+
+        # 检查换手率异常
+        if 'turnover' in data.columns or 'turnover_rate' in data.columns:
+            col = 'turnover' if 'turnover' in data.columns else 'turnover_rate'
+            high_turnover = (data[col] > self.thresholds['max_turnover_rate']).sum()
+            if high_turnover > 0:
+                outlier_count += high_turnover
+                self.report.issues.append(f"{col} 过高 (>{self.thresholds['max_turnover_rate']}%): {high_turnover} 条")
+
+        # 检查财务指标异常
+        if 'pe_ttm' in data.columns:
+            too_low_pe = (data['pe_ttm'] < self.thresholds['min_pe_ttm']).sum()
+            too_high_pe = (data['pe_ttm'] > self.thresholds['max_pe_ttm']).sum()
+            if too_low_pe > 0:
+                outlier_count += too_low_pe
+                self.report.issues.append(f"PE_TTM 过低 (<{self.thresholds['min_pe_ttm']}): {too_low_pe} 条")
+            if too_high_pe > 0:
+                outlier_count += too_high_pe
+                self.report.issues.append(f"PE_TTM 过高 (>{self.thresholds['max_pe_ttm']}): {too_high_pe} 条")
+
+        if 'pb' in data.columns:
+            too_low_pb = (data['pb'] < self.thresholds['min_pb']).sum()
+            too_high_pb = (data['pb'] > self.thresholds['max_pb']).sum()
+            if too_low_pb > 0:
+                outlier_count += too_low_pb
+                self.report.issues.append(f"PB 过低 (<{self.thresholds['min_pb']}): {too_low_pb} 条")
+            if too_high_pb > 0:
+                outlier_count += too_high_pb
+                self.report.issues.append(f"PB 过高 (>{self.thresholds['max_pb']}): {too_high_pb} 条")
+
+        if 'roe' in data.columns:
+            too_low_roe = (data['roe'] < self.thresholds['min_roe']).sum()
+            too_high_roe = (data['roe'] > self.thresholds['max_roe']).sum()
+            if too_low_roe > 0:
+                outlier_count += too_low_roe
+                self.report.issues.append(f"ROE 过低 (<{self.thresholds['min_roe']}%): {too_low_roe} 条")
+            if too_high_roe > 0:
+                outlier_count += too_high_roe
+                self.report.issues.append(f"ROE 过高 (>{self.thresholds['max_roe']}%): {too_high_roe} 条")
 
         self.report.outlier_records = outlier_count
 

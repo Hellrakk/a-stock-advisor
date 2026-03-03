@@ -667,16 +667,36 @@ class BacktestEngineV2:
             # 最大回撤
             cumulative = pd.Series((1 + returns).cumprod())
             running_max = cumulative.expanding().max()
-            max_drawdown = ((cumulative - running_max) / running_max).min()
+            drawdown = ((cumulative - running_max) / running_max)
+            max_drawdown = drawdown.min()
+            max_drawdown_period = drawdown.idxmin() if len(drawdown) > 0 else 0
             
             # 胜率
             win_rate = (returns > 0).mean()
+            
+            # 盈亏比
+            positive_returns = returns[returns > 0]
+            negative_returns = returns[returns < 0]
+            profit_loss_ratio = np.mean(positive_returns) / abs(np.mean(negative_returns)) if len(negative_returns) > 0 else 0
+            
+            # 索提诺比率
+            downside_returns = returns[returns < 0]
+            downside_volatility = np.std(downside_returns) if len(downside_returns) > 0 else 1
+            sortino_ratio = (period_return - rf_monthly) / downside_volatility if downside_volatility > 0 else 0
+            annual_sortino = sortino_ratio * np.sqrt(12)
+            
+            # Calmar比率
+            calmar_ratio = annual_return / abs(max_drawdown) if max_drawdown < 0 else 0
         else:
             annual_return = 0
             annual_volatility = 0
             annual_sharpe = 0
             max_drawdown = 0
+            max_drawdown_period = 0
             win_rate = 0
+            profit_loss_ratio = 0
+            annual_sortino = 0
+            calmar_ratio = 0
         
         # 交易统计
         trades_df = pd.DataFrame(self.trades)
@@ -688,6 +708,12 @@ class BacktestEngineV2:
             total_commission = filled_trades['commission'].sum()
             total_stamp_tax = filled_trades['stamp_tax'].sum() if 'stamp_tax' in filled_trades.columns else 0
             total_cost = total_commission + total_stamp_tax
+            
+            # 平均持仓时间
+            if len(sell_trades) > 0:
+                sell_trades['holding_period'] = 0  # 这里需要根据实际情况计算
+            else:
+                sell_trades = pd.DataFrame()
         else:
             buy_trades = pd.DataFrame()
             sell_trades = pd.DataFrame()
@@ -700,11 +726,17 @@ class BacktestEngineV2:
             'annual_return': annual_return,
             'annual_volatility': annual_volatility,
             'sharpe_ratio': annual_sharpe,
+            'sortino_ratio': annual_sortino,
+            'calmar_ratio': calmar_ratio,
             'max_drawdown': max_drawdown,
+            'max_drawdown_period': max_drawdown_period,
             'win_rate': win_rate,
+            'profit_loss_ratio': profit_loss_ratio,
             'num_trades': len(self.trades),
             'num_filled': len(filled_trades) if 'filled_trades' in locals() else 0,
+            'fill_rate': len(filled_trades) / len(self.trades) if len(self.trades) > 0 else 0,
             'total_cost': total_cost,
+            'cost_ratio': total_cost / self.initial_capital,
             'history': history_df,
             'trades': trades_df
         }

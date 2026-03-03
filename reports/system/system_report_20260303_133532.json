@@ -1,0 +1,81 @@
+{
+  "system": {
+    "base_dir": "/Users/variya/.openclaw/workspace/projects/a-stock-advisor",
+    "status": "running",
+    "start_time": "2026-03-03 13:35:11",
+    "uptime": 20.103398
+  },
+  "components": [
+    "data_fetcher",
+    "data_quality",
+    "backtest_engine",
+    "real_time_trader",
+    "fund_manager",
+    "risk_budget_manager",
+    "portfolio_optimizer",
+    "stock_selector",
+    "factor_weight_system",
+    "factor_risk_model",
+    "factor_exposure_monitor",
+    "huatai_trader",
+    "trader_assistant"
+  ],
+  "plugins": [],
+  "configs": [
+    "feishu_config",
+    "risk_limits",
+    "cron_config_v2"
+  ],
+  "health": {
+    "timestamp": "2026-03-03 13:35:32",
+    "system_status": "running",
+    "uptime_seconds": 20.103403,
+    "components": {
+      "data_fetcher": {
+        "status": "ok"
+      },
+      "data_quality": {
+        "status": "ok"
+      },
+      "backtest_engine": {
+        "status": "ok"
+      },
+      "real_time_trader": {
+        "status": "ok"
+      },
+      "fund_manager": {
+        "status": "ok"
+      },
+      "risk_budget_manager": {
+        "status": "ok"
+      },
+      "portfolio_optimizer": {
+        "status": "ok"
+      },
+      "stock_selector": {
+        "status": "ok"
+      },
+      "factor_weight_system": {
+        "status": "ok"
+      },
+      "factor_risk_model": {
+        "status": "ok"
+      },
+      "factor_exposure_monitor": {
+        "status": "ok"
+      },
+      "huatai_trader": {
+        "status": "ok"
+      },
+      "trader_assistant": {
+        "status": "ok"
+      }
+    },
+    "plugins": {},
+    "configs_loaded": [
+      "feishu_config",
+      "risk_limits",
+      "cron_config_v2"
+    ]
+  }
+}

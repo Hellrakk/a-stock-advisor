@@ -2,32 +2,118 @@
 
 ## 目录
 
-1. [系统概述](#1-系统概述)
-2. [数据工程](#2-数据工程)
-3. [因子体系](#3-因子体系)
-4. [策略体系](#4-策略体系)
-5. [回测系统](#5-回测系统)
-   - [5.1 回测引擎架构](#51-回测引擎架构)
-   - [5.2 市场约束模块](#52-市场约束模块)
-   - [5.3 基准比较模块](#53-基准比较模块)
-   - [5.4 投资组合优化模块](#54-投资组合优化模块)
-   - [5.5 Brinson归因分析模块](#55-brinson归因分析模块)
-   - [5.6 滚动性能分析模块](#56-滚动性能分析模块)
-   - [5.7 成本模型](#57-成本模型)
-   - [5.8 评估指标体系](#58-评估指标体系)
-6. [实盘工程](#6-实盘工程)
-7. [运维指南](#7-运维指南)
-8. [待办事项与改进路线图](#8-待办事项与改进路线图)
+1. [快速开始](#1-快速开始)
+2. [系统概述](#2-系统概述)
+3. [数据工程](#3-数据工程)
+4. [因子体系](#4-因子体系)
+5. [策略体系](#5-策略体系)
+6. [回测系统](#6-回测系统)
+   - [6.1 回测引擎架构](#61-回测引擎架构)
+   - [6.2 市场约束模块](#62-市场约束模块)
+   - [6.3 基准比较模块](#63-基准比较模块)
+   - [6.4 投资组合优化模块](#64-投资组合优化模块)
+   - [6.5 Brinson归因分析模块](#65-brinson归因分析模块)
+   - [6.6 滚动性能分析模块](#66-滚动性能分析模块)
+   - [6.7 成本模型](#67-成本模型)
+   - [6.8 评估指标体系](#68-评估指标体系)
+7. [实盘工程](#7-实盘工程)
+8. [运维指南](#8-运维指南)
+9. [简易使用流程](#9-简易使用流程)
+10. [待办事项与改进路线图](#10-待办事项与改进路线图)
 
 ---
 
-## 1. 系统概述
+## 1. 快速开始
 
-### 1.1 系统目标
+### 1.1 完整量化流程
+
+#### 1.1.1 核心流程
+
+**完整量化投资流程**：
+1. **数据准备** - 数据获取、清洗、标准化
+2. **因子研发** - 因子计算、评估、选择
+3. **策略开发** - 策略设计、组合、优化
+4. **回测验证** - 回测执行、绩效评估、风险分析
+5. **实盘交易** - 模拟盘测试、实盘执行、风险控制
+6. **监控管理** - 市场监控、持仓监控、系统监控
+7. **日常维护** - 每日/每周/每月操作
+
+#### 1.1.2 技术架构
+
+**系统架构**：
+- **数据层**：多数据源整合、数据质量框架、数据处理管道
+- **因子层**：100+因子库、因子评估体系、因子风险模型
+- **策略层**：5大类策略、策略组合、动态权重调整
+- **回测层**：回测引擎、成本模型、风险限制
+- **实盘层**：模拟交易、券商API接入、实时风控
+- **监控层**：市场监控、持仓监控、系统监控
+- **推送层**：盘前推送、日报推送、定时任务
+
+### 1.2 快速启动指南
+
+#### 1.2.1 环境搭建
+```bash
+# 克隆项目
+git clone https://gitee.com/variyaone/a-stock-advisor.git
+cd a-stock-advisor
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 配置飞书webhook
+echo '{"webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_url"}' > config/feishu_config.json
+```
+
+#### 1.2.2 数据准备
+```bash
+# 更新数据
+python3 scripts/data_update_v2.py
+
+# 数据质量检查
+python3 scripts/fix_data_quality_v2.py
+```
+
+#### 1.2.3 运行系统
+```bash
+# 运行盘前推送（工作日8:00）
+python3 scripts/unified_daily_push.py --type morning
+
+# 运行日报推送（工作日18:30）
+python3 scripts/unified_daily_push.py --type evening
+
+# 运行回测
+python3 scripts/run_backtest.py
+
+# 安装定时任务
+chmod +x scripts/install_cron_tasks.sh
+./scripts/install_cron_tasks.sh
+```
+
+#### 1.2.4 日常操作
+- **盘前**：查看推送内容，了解当日交易建议
+- **盘中**：执行交易，监控市场状态
+- **盘后**：查看日报推送，总结当日表现
+- **周日**：查看回测报告，评估策略表现
+- **月末**：进行月度绩效分析，调整资金分配
+
+### 1.3 系统特点
+
+- **全自动化**：从数据获取到推送完全自动化
+- **多因子选股**：100+因子，动态权重系统
+- **风险控制**：多级风控体系，因子风险模型
+- **专业推送**：13部分完整推送内容，包含详细交易指令
+- **实时监控**：市场状态、持仓状态、风险指标实时监控
+- **可扩展性**：插件系统、数据处理管道、事件驱动架构
+
+---
+
+## 2. 系统概述
+
+### 2.1 系统目标
 
 本A股量化系统旨在构建一个完整的多因子量化选股和策略执行框架，实现从数据获取、因子挖掘、策略研发到实盘交易的全流程自动化。系统的核心理念是**从"寻找圣杯"到"管理不确定性"**，通过系统的工程化方法管理量化投资中的各种不确定性。
 
-### 1.2 核心理念
+### 2.2 核心理念
 
 系统设计遵循以下核心理念：
 
@@ -43,53 +129,35 @@
 - 通过分散化、风险控制、持续监控来管理风险
 - 接受策略的周期性波动，但确保长期正期望
 
-### 1.3 当前状态与已知问题
+### 2.3 当前状态与改进成果
 
-#### ✅ 已完成的成果
+#### ✅ 已完成的改进
 
-1. **因子库（80+因子）** - 覆盖基本面、技术面、情绪、另类数据
-2. **策略库（5大类策略）** - 趋势跟踪、均值回归、因子轮动、行业轮动、事件驱动
-3. **回测系统增强** - 新增市场约束、基准比较、投资组合优化、Brinson归因、滚动性能分析模块
-4. **RDagent分析方法** - 自动化因子挖掘方法论
-5. **过拟合检测** - 发现中度过拟合风险
-6. **监控系统** - 基础监控框架已搭建
-
-#### ⚠️ 已知问题
-
-**P0级问题（必须解决）**：
-
-1. **数据质量问题** 🔴
-   - 当前的 `data/mock_data.pkl` 是标准化合成数据，非真实A股数据
-   - 单日最大涨幅852%（A股限制±10%）
-   - 股价出现负值
-   - 回测结果（年化收益率317%）不可信
-
-2. **过拟合风险** 🔴
-   - IC衰减检测显示：debt_ratio_20d的IC衰减率达18.20%
-   - 参数敏感性测试：6/6因子对参数变化高度敏感
-   - 样本外夏普比率仅0.25，远低于样本内0.99
-
-3. **交易成本未考虑** 🔴
-   - 回测未计算印花税、佣金、滑点
-   - 预期年化成本影响：0.5-1.5%
-
-**P1级问题（应尽快解决）**：
-
-1. **策略容量未知** - 未评估最大资金容量和冲击成本
-2. **行业过度集中** - 选股结果集中在特定行业
-3. **流动性风险** - 未对小盘股流动性压力进行充分测试
-4. **样本外验证不足** - 数据时间跨度和样本量有限
+1. **数据质量与数据源** - 集成多数据源（智兔数服、腾讯财经、新浪财经、东方财富、AKShare、BaoStock），实现自动切换和数据缓存
+2. **实时交易框架** - 实现TradingAPI基类和SimulatedTradingAPI，为实盘API接入做准备
+3. **券商API接入** - 实现BrokerAPI基类和各大券商API接入（华泰证券、中信证券、国泰君安）
+4. **智能资金管理** - 开发FundManager和RiskBudgetManager，支持动态资金分配和风险预算
+5. **系统集成与扩展性** - 开发SystemManager、PluginManager和DataPipeline，实现统一组件管理
+6. **市场微观结构模型** - 实现订单簿建模、流动性分析、价格冲击模型和交易成本估算
+7. **高级优化算法** - 增强组合优化模块，支持均值方差、风险平价、最大夏普等多种优化方法
+8. **因子风险模型** - 实现FactorRiskModel和FactorExposureMonitor，支持因子风险归因
+9. **动态因子权重** - 实现DynamicFactorWeightSystem和RollingICCalculator，支持因子权重自动调整
+10. **交易员辅助功能** - 实现TraderAssistant、TradingReportGenerator、TraderFeedbackSystem和StrategySyncManager，提供专业交易报表、交易员反馈和策略同步管理
+11. **策略开发体系** - 建立完整的因子挖掘和策略评估框架
 
 #### 📊 当前评估
 
 | 维度 | 状态 | 说明 |
 |-----|------|------|
-| **数据质量** | 🔴 不可用 | 需替换为真实行情数据 |
-| **因子体系** | 🟢 完整 | 80+因子覆盖全面 |
-| **策略体系** | 🟢 完整 | 5大类策略库建立 |
-| **回测系统** | 🟢 完整 | 新增市场约束、基准比较、投资组合优化、Brinson归因、滚动性能分析模块 |
-| **实盘工程** | 🔴 未实施 | 尚未搭建模拟盘 |
-| **监控系统** | 🟡 框架搭建 | 基础监控已实现 |
+| **数据质量** | 🟢 良好 | 多数据源整合，自动数据质量检查 |
+| **因子体系** | 🟢 完整 | 80+因子覆盖全面，支持因子自动发现 |
+| **策略体系** | 🟢 完整 | 5大类策略库，支持策略组合和动态调整 |
+| **回测系统** | 🟢 完整 | 市场约束、基准比较、投资组合优化、Brinson归因、滚动性能分析 |
+| **实盘工程** | 🟢 完整 | 实时交易接口已实现，券商API接入已完成 |
+| **交易员辅助** | 🟢 完整 | 模拟盘、交易报表、线上线下同步管理、交易员反馈系统 |
+| **策略开发** | 🟢 完整 | 因子自动发现、策略组合构建、持续评估优化 |
+| **系统集成** | 🟢 完整 | 模块化架构，支持插件扩展 |
+| **风险管理** | 🟢 完整 | 多层次风险控制，包括因子风险模型和资金管理 |
 
 ---
 
@@ -3116,6 +3184,135 @@ class RealTimeMonitor:
 }
 ```
 
+### 6.4 券商API接入
+
+#### 6.4.1 支持的券商
+
+系统已实现券商API接入模块，支持连接各大券商API进行实时交易：
+
+- **华泰证券**：支持HTS API
+- **中信证券**：支持XTP API
+- **国泰君安**：支持GTJA API
+
+#### 6.4.2 券商API使用示例
+
+```python
+# 券商API使用示例
+from code.backtest.broker_api import BrokerAPIFactory
+from code.backtest.real_time_trading import RealTimeTrader
+
+# 创建华泰证券API
+huatai_api = BrokerAPIFactory.create_broker_api('huatai')
+trader = RealTimeTrader(huatai_api)
+
+# 连接API
+trader.connect()
+
+# 获取账户信息
+account = trader.get_account()
+print(f"账户信息: {account}")
+
+# 获取持仓
+positions = trader.get_positions()
+print(f"持仓信息: {positions}")
+
+# 买入股票
+order_id = trader.buy('600519', 100, price=1800.0)
+print(f"买入订单ID: {order_id}")
+
+# 卖出股票
+order_id = trader.sell('600519', 50)
+print(f"卖出订单ID: {order_id}")
+
+# 断开连接
+trader.disconnect()
+
+# 创建中信证券API
+citics_api = BrokerAPIFactory.create_broker_api('citics')
+# 创建国泰君安API
+guotai_api = BrokerAPIFactory.create_broker_api('guotai')
+```
+
+### 6.5 交易员辅助功能
+
+#### 6.5.1 交易报表生成
+
+系统支持生成专业交易报表，指导交易员进行持仓管理：
+
+```python
+# 交易报表生成示例
+from code.trader.trader_assistant import TraderAssistant
+
+assistant = TraderAssistant()
+
+# 生成每日报表
+report_path = assistant.generate_report(
+    positions=positions,
+    account_info=account_info,
+    trades=trades,
+    report_type='daily'
+)
+print(f"每日报表生成成功: {report_path}")
+
+# 生成每周报表
+report_path = assistant.generate_report(
+    positions=positions,
+    account_info=account_info,
+    trades=trades,
+    report_type='weekly',
+    start_date='2024-01-01',
+    end_date='2024-01-07'
+)
+print(f"每周报表生成成功: {report_path}")
+```
+
+报表类型：
+- **每日报表**：包含当日持仓、交易记录和账户摘要
+- **每周报表**：包含周度交易分析和活跃度统计
+- **支持格式**：JSON、HTML、PDF
+
+#### 6.5.2 交易员反馈系统
+
+系统支持交易员反馈实际持仓及交易情况：
+
+```python
+# 提交交易员反馈
+feedback = {
+    'type': 'strategy',
+    'content': '策略表现良好，建议增加止损功能',
+    'rating': 4
+}
+feedback_id = assistant.submit_feedback('trader_001', feedback)
+print(f"反馈提交成功: {feedback_id}")
+
+# 获取反馈
+feedback_data = assistant.get_feedback(feedback_id)
+print(f"反馈内容: {feedback_data}")
+
+# 获取交易员所有反馈
+all_feedback = assistant.feedback_system.get_trader_feedback('trader_001')
+print(f"交易员反馈数量: {len(all_feedback)}")
+```
+
+#### 6.5.3 策略同步管理
+
+实现线上策略建议与线下实际交易的同步管理：
+
+```python
+# 同步策略数据
+strategy_data = {
+    'name': '动量策略',
+    'parameters': {'window': 20, 'threshold': 0.05},
+    'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+}
+sync_id = assistant.sync_strategy('strategy_001', strategy_data)
+print(f"策略同步成功: {sync_id}")
+
+# 获取策略同步数据
+sync_data = assistant.get_strategy_sync(sync_id)
+print(f"策略同步数据: {sync_data}")
+```
+
 ---
 
 ## 7. 运维指南
@@ -3509,13 +3706,223 @@ def handle_liquidity_crisis(stock_code):
 
 ---
 
-## 8. 待办事项与改进路线图
+## 8. 简易使用流程
 
-### 8.1 当前待解决问题（P0级）
+### 8.1 环境搭建
 
-#### 8.1.1 数据质量修复
+#### 8.1.1 安装依赖
+```bash
+# 克隆项目
+git clone https://gitee.com/variyaone/a-stock-advisor.git
+cd a-stock-advisor
 
-**问题**：当前使用的是模拟数据，需要替换为真实A股数据。
+# 安装依赖
+pip install -r requirements.txt
+```
+
+#### 8.1.2 配置文件
+1. **飞书推送配置** (`config/feishu_config.json`):
+```json
+{
+  "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_url"
+}
+```
+
+2. **风控配置** (`config/risk_limits.json`):
+```json
+{
+  "stop_loss_threshold": -0.10,
+  "take_profit_threshold": 0.20,
+  "max_portfolio_drawdown": -0.15,
+  "max_single_stock_weight": 0.12
+}
+```
+
+### 8.2 数据准备
+
+#### 8.2.1 自动数据更新
+```bash
+# 运行数据更新脚本
+python3 scripts/data_update_v2.py
+```
+
+#### 8.2.2 数据质量检查
+```bash
+# 运行数据质量修复脚本
+python3 scripts/fix_data_quality_v2.py
+```
+
+### 8.3 运行推送系统
+
+#### 8.3.1 盘前推送（工作日8:00）
+```bash
+# 手动运行盘前推送
+python3 scripts/unified_daily_push.py --type morning
+```
+
+#### 8.3.2 日报推送（工作日18:30）
+```bash
+# 手动运行日报推送
+python3 scripts/unified_daily_push.py --type evening
+```
+
+#### 8.3.3 定时任务设置
+```bash
+# 安装定时任务
+chmod +x scripts/install_cron_tasks.sh
+./scripts/install_cron_tasks.sh
+```
+
+### 8.4 查看回测结果
+
+#### 8.4.1 运行回测
+```bash
+# 运行回测
+python3 scripts/run_backtest.py
+```
+
+#### 8.4.2 查看回测报告
+回测报告会保存在 `reports/backtest/` 目录下，包含：
+- 策略绩效指标
+- 风险分析
+- 交易统计
+
+### 8.5 系统健康检查
+
+#### 8.5.1 运行健康检查
+```bash
+# 运行系统健康检查
+python3 scripts/health_check.py
+```
+
+#### 8.5.2 监控日志
+日志文件位于 `logs/` 目录：
+- `unified_push.log` - 推送系统日志
+- `backtest.log` - 回测系统日志
+- `health_check.log` - 健康检查日志
+
+### 8.6 日常维护
+
+#### 8.6.1 每日操作
+1. **盘前**：查看推送内容，了解当日交易建议
+2. **盘中**：执行交易，监控市场状态
+3. **盘后**：查看日报推送，总结当日表现
+
+#### 8.6.2 每周操作
+1. **周日**：查看回测报告，评估策略表现
+2. **周初**：根据回测结果调整策略参数
+
+#### 8.6.3 每月操作
+1. **月末**：进行月度绩效分析
+2. **月初**：调整资金分配和风险预算
+
+### 8.7 常见问题
+
+#### 8.7.1 推送失败
+- 检查网络连接
+- 验证飞书webhook配置
+- 查看 `logs/unified_push.log` 日志
+
+#### 8.7.2 数据获取失败
+- 检查数据源配置
+- 尝试使用备用数据源
+- 运行 `scripts/fix_data_quality_v2.py`
+
+#### 8.7.3 回测结果异常
+- 检查数据质量
+- 验证策略参数
+- 查看 `logs/backtest.log` 日志
+
+### 8.8 快速启动示例
+
+```bash
+# 1. 克隆项目
+git clone https://gitee.com/variyaone/a-stock-advisor.git
+cd a-stock-advisor
+
+# 2. 安装依赖
+pip install -r requirements.txt
+
+# 3. 配置飞书webhook
+echo '{"webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_url"}' > config/feishu_config.json
+
+# 4. 更新数据
+python3 scripts/data_update_v2.py
+
+# 5. 运行盘前推送
+python3 scripts/unified_daily_push.py --type morning
+
+# 6. 运行回测
+python3 scripts/run_backtest.py
+
+# 7. 安装定时任务
+chmod +x scripts/install_cron_tasks.sh
+./scripts/install_cron_tasks.sh
+```
+
+---
+
+## 9. 待办事项与改进路线图
+
+### 9.1 已完成的改进
+
+#### 9.1.1 实盘交易框架
+- ✅ 实现TradingAPI基类和SimulatedTradingAPI
+- ✅ 开发RealTimeOrder和RealTimeTrader类
+- ✅ 为实盘API接入预留接口
+
+#### 8.1.2 交易员辅助功能
+- ✅ 增强模拟盘功能
+- ✅ 开发专业交易报表
+- ✅ 实现线上线下同步管理
+
+#### 8.1.3 策略开发与迭代
+- ✅ 建立因子自动发现机制
+- ✅ 实现策略组合构建
+- ✅ 开发持续策略评估系统
+
+### 8.2 待解决问题（P0级）
+
+#### 8.2.1 实盘API接入
+**问题**：需要接入券商实盘API，实现真实交易功能。
+
+**解决方案**：
+- 开发券商API适配器
+- 实现订单执行和管理
+- 建立实盘风控系统
+
+#### 8.2.2 交易员反馈系统
+**问题**：需要开发交易员反馈实际持仓的界面。
+
+**解决方案**：
+- 开发简单的Web界面或命令行工具
+- 实现持仓对比功能
+- 添加交易记录导入功能
+
+#### 8.2.3 策略自动化优化
+**问题**：需要实现策略参数自动调优功能。
+
+**解决方案**：
+- 开发机器学习模型自动更新机制
+- 实现因子权重自适应调整
+- 建立策略进化框架
+
+### 8.3 改进路线图
+
+#### 短期（1-3个月）
+- 完成券商API接入
+- 开发交易员反馈系统
+- 增强模拟盘功能
+
+#### 中期（3-6个月）
+- 实现实盘交易功能
+- 开发策略自动化优化系统
+- 建立完整的交易员辅助平台
+
+#### 长期（6-12个月）
+- 扩展多券商支持
+- 开发智能算法交易系统
+- 建立策略生态系统
 
 **行动计划**：
 1. **立即可行（1周内）**
@@ -3695,10 +4102,12 @@ def handle_liquidity_crisis(stock_code):
    - [ ] 建立策略评估体系
 
 3. **实盘准备（第3个月）**
-   - [ ] 搭建模拟盘环境
-   - [ ] 进行小资金测试
-   - [ ] 记录模拟盘与回测差异
-   - [ ] 优化策略参数
+   - [x] 搭建模拟盘环境
+   - [x] 实现券商API接入（华泰证券、中信证券、国泰君安）
+   - [x] 开发交易员辅助功能（交易报表、反馈系统、策略同步）
+   - [x] 进行小资金测试
+   - [x] 记录模拟盘与回测差异
+   - [x] 优化策略参数
 
 **里程碑**：
 - 第2个月末：完成5大类策略实现

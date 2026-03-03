@@ -1,0 +1,48 @@
+{
+  "date": "2026-03-03",
+  "account": {
+    "cash": 815000.0,
+    "total_value": 1000000.0,
+    "positions_value": 185000.0,
+    "pnl": 0.0
+  },
+  "positions": {
+    "600519": {
+      "stock_code": "600519",
+      "quantity": 100,
+      "avg_price": 1800.0,
+      "market_value": 180000.0
+    },
+    "000001": {
+      "stock_code": "000001",
+      "quantity": 500,
+      "avg_price": 10.0,
+      "market_value": 5000.0
+    }
+  },
+  "trades": [
+    {
+      "time": "09:30:00",
+      "stock_code": "600519",
+      "side": "buy",
+      "price": 1800.0,
+      "quantity": 100
+    },
+    {
+      "time": "10:30:00",
+      "stock_code": "000001",
+      "side": "buy",
+      "price": 10.0,
+      "quantity": 500
+    }
+  ],
+  "summary": {
+    "total_positions": 2,
+    "total_value": 1000000.0,
+    "total_cash": 815000.0,
+    "total_pnl": 0.0,
+    "buy_trades": 2,
+    "sell_trades": 0,
+    "total_trades": 2
+  }
+}
