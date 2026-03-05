@@ -17,15 +17,16 @@ class Position:
     """持仓数据类"""
     stock_code: str
     stock_name: str
-    cost_price: float  # 成本价
-    current_price: float  # 当前价
-    shares: float  # 持仓股数
-    market_value: float  # 市值
-    profit_loss: float  # 盈亏金额
-    profit_loss_pct: float  # 盈亏百分比
-    holding_days: int  # 持仓天数
+    quantity: int = 0  # 持仓股数
+    avg_price: float = 0.0  # 成本价
+    cost_basis: float = 0.0  # 成本总额
+    current_price: float = 0.0  # 当前价
+    current_value: float = 0.0  # 市值
+    profit_loss: float = 0.0  # 盈亏金额
+    profit_loss_pct: float = 0.0  # 盈亏百分比
+    entry_date: str = ""  # 建仓日期
+    holding_days: int = 0  # 持仓天数
     sector: str = ""  # 所属行业
-    buy_date: str = ""  # 建仓日期
     alpha_score: float = 0.0  # α因子得分
 
 @dataclass
@@ -155,20 +156,19 @@ class PortfolioTracker:
         
         # 判断是建仓还是加仓
         if stock_code in self.positions:
-            # 加仓
             position = self.positions[stock_code]
-            old_shares = position.shares
-            old_amount = position.cost_price * old_shares
+            old_shares = position.quantity
+            old_amount = position.avg_price * old_shares
             
-            # 重新计算成本价
             total_shares = old_shares + shares
             total_amount = old_amount + amount
             new_cost_price = total_amount / total_shares
             
-            position.shares = total_shares
-            position.cost_price = new_cost_price
+            position.quantity = total_shares
+            position.avg_price = new_cost_price
+            position.cost_basis = total_amount
             position.current_price = price
-            position.market_value = position.shares * price
+            position.current_value = position.quantity * price
             position.alpha_score = alpha_score
             if sector:
                 position.sector = sector
@@ -176,19 +176,19 @@ class PortfolioTracker:
             action = 'add'
             description = f"加仓: 从{old_shares:.0f}股增至{total_shares:.0f}股"
         else:
-            # 建仓
             position = Position(
                 stock_code=stock_code,
                 stock_name=stock_name,
-                cost_price=price,
+                quantity=shares,
+                avg_price=price,
+                cost_basis=price * shares,
                 current_price=price,
-                shares=shares,
-                market_value=price * shares,
+                current_value=price * shares,
                 profit_loss=0.0,
                 profit_loss_pct=0.0,
+                entry_date=today,
                 holding_days=0,
                 sector=sector,
-                buy_date=today,
                 alpha_score=alpha_score
             )
             self.positions[stock_code] = position
@@ -241,17 +241,15 @@ class PortfolioTracker:
         amount = price * shares
         
         # 判断是减仓还是清仓
-        if shares >= position.shares:
-            # 清仓
+        if shares >= position.quantity:
             action = 'sell'
-            description = f"清仓: 卖出{position.shares:.0f}股"
+            description = f"清仓: 卖出{position.quantity:.0f}股"
             del self.positions[stock_code]
         else:
-            # 减仓
             action = 'reduce'
-            description = f"减仓: 从{position.shares:.0f}股减至{position.shares - shares:.0f}股"
-            position.shares -= shares
-            position.market_value = position.shares * price
+            description = f"减仓: 从{position.quantity:.0f}股减至{position.quantity - shares:.0f}股"
+            position.quantity -= shares
+            position.current_value = position.quantity * price
         
         # 更新现金
         self.cash += amount
@@ -279,7 +277,7 @@ class PortfolioTracker:
     
     def _update_portfolio_value(self):
         """更新持仓市值"""
-        self.portfolio_value = sum(pos.market_value for pos in self.positions.values())
+        self.portfolio_value = sum(pos.current_value for pos in self.positions.values())
         self.total_assets = self.cash + self.portfolio_value
     
     def update_prices(self, stock_prices: Dict[str, float]):
@@ -293,9 +291,9 @@ class PortfolioTracker:
             if stock_code in self.positions:
                 position = self.positions[stock_code]
                 position.current_price = price
-                position.market_value = position.shares * price
-                position.profit_loss = (price - position.cost_price) * position.shares
-                position.profit_loss_pct = (price - position.cost_price) / position.cost_price * 100
+                position.current_value = position.quantity * price
+                position.profit_loss = (price - position.avg_price) * position.quantity
+                position.profit_loss_pct = (price - position.avg_price) / position.avg_price * 100 if position.avg_price > 0 else 0
         
         self._update_portfolio_value()
         self._save_state()
@@ -315,10 +313,10 @@ class PortfolioTracker:
             data.append({
                 '股票代码': position.stock_code,
                 '股票名称': position.stock_name,
-                '成本价': position.cost_price,
+                '成本价': position.avg_price,
                 '当前价': position.current_price,
-                '持仓数': position.shares,
-                '市值': position.market_value,
+                '持仓数': position.quantity,
+                '市值': position.current_value,
                 '盈亏': position.profit_loss,
                 '盈亏%': position.profit_loss_pct,
                 '持仓天数': position.holding_days,
@@ -385,16 +383,14 @@ class PortfolioTracker:
             target_market_value = target_value * target_weight
             
             if stock_code in self.positions:
-                # 已持仓，计算需要调整的金额
                 position = self.positions[stock_code]
-                current_market_value = position.market_value
+                current_market_value = position.current_value
                 diff_value = target_market_value - current_market_value
                 
                 price = current_prices.get(stock_code, position.current_price)
                 
-                if abs(diff_value) > 100:  # 忽略微小调整
+                if abs(diff_value) > 100:
                     if diff_value > 0:
-                        # 需要加仓
                         shares = diff_value / price
                         rebalance_actions.append({
                             'stock_code': stock_code,
@@ -408,9 +404,8 @@ class PortfolioTracker:
                             )
                         })
                     else:
-                        # 需要减仓
                         shares = abs(diff_value) / price
-                        shares = min(shares, position.shares)  # 不能超过持仓
+                        shares = min(shares, position.quantity)
                         rebalance_actions.append({
                             'stock_code': stock_code,
                             'stock_name': position.stock_name,
