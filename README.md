@@ -1,30 +1,168 @@
-# A股量化系统 v5.0
+# A股量化系统 v5.1
 
-> 智能α因子选股 + 持仓跟踪 + 换仓策略 + 风控体系 + 专业推送 + 因子风险模型
+> 智能α因子选股 + 持仓跟踪 + 换仓策略 + 风控体系 + 专业推送 + 统一命令行入口
 
 ---
 
 ## 📋 系统简介
 
-这是一个完整的A股量化交易系统，包含α因子选股、持仓跟踪、换仓策略、风控体系和专业自动化推送功能。
+这是一个完整的A股量化交易系统，包含α因子选股、持仓跟踪、换仓策略、风控体系、专业自动化推送功能和**统一命令行入口**。系统设计遵循"从寻找圣杯到管理不确定性"的核心理念，通过工程化方法管理量化投资中的各种不确定性。
 
 **核心特性：**
-- 🎯 α因子选股（100+因子，低估+高α策略）
+- 🎯 α因子选股（80+因子，低估+高α策略）
 - 📊 持仓跟踪（实时监控、止盈止损）
 - 🔄 换仓策略（止盈/止损/时间/因子触发）
-- ⚠️ 风控体系（多级风险控制 + Beta监控）
+- ⚠️ 风控体系（多级风险控制 + Beta监控 + 压力测试）
 - 📈 专业推送（完整交易指令 + 因子信息 + 行业标准）
 - 🌐 市场状态监控（千股跌停、流动性、恐慌指数）
 - 🔬 因子风险模型（因子暴露监控、风险归因）
+- 🎮 **统一命令行入口**（`a_stock_manager.py` - 所有功能一键管理）
+- 📱 多数据源整合（智兔数服、腾讯财经、新浪财经、AKShare等）
 
-**最新更新（v5.0）：**
-- ✅ 因子公式修复（毛利率等公式错误修正）
-- ✅ IC计算优化（最小样本量100只，显著性检验）
-- ✅ 动态因子权重系统（滚动IC、权重稳定性监控）
-- ✅ 技术面因子扩展（动量、反转、波动率、量价因子）
-- ✅ 因子中性化（行业/市值/双重中性化）
-- ✅ 因子风险模型（FactorRiskModel、FactorExposureMonitor）
-- ✅ 开源项目融合方案（Qlib、QUANTAXIS、VNPy等）
+**最新更新（v5.1）：**
+- ✅ **创建统一命令行入口**（`a_stock_manager.py`）- 所有功能通过一个菜单管理
+- ✅ **每日主控流程**（`daily_master.py`）- 完整的因子评估、选股、回测、持仓管理和报告生成
+- ✅ **项目结构整理** - 移除重复和孤立内容，归档到 `archive/` 目录
+- ✅ **菜单优化** - 简化选项，突出推荐功能
+- ✅ **移除前端系统** - 前端无法使用，已归档
+- ✅ **移除孤立模块** - `code/` 目录大部分模块未被使用，已归档
+
+---
+
+## 🚀 快速开始
+
+### 1. 运行统一主入口（推荐）
+
+```bash
+# 进入项目目录
+cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor
+
+# 运行主入口（推荐方式）
+python3 a_stock_manager.py
+```
+
+主入口会显示交互式菜单，包含以下功能：
+1. **数据工程** - 数据更新、质量检查、时效性检查
+2. **因子研发** - 因子计算、因子评估、因子库管理
+3. **策略开发** - 选股策略、回测验证、策略优化
+4. **回测验证** - 回测引擎、绩效分析、风险归因
+5. **实盘工程** - 持仓管理、交易执行、风控系统
+6. **系统管理** - 系统配置、定时任务、健康检查
+
+### 2. 环境搭建
+
+```bash
+# 克隆项目
+git clone https://gitee.com/variyaone/a-stock-advisor.git
+cd a-stock-advisor
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 配置飞书webhook
+echo '{"webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_url"}' > config/feishu_config.json
+```
+
+### 3. 数据准备
+
+```bash
+# 通过主入口菜单选择"数据更新"
+python3 a_stock_manager.py
+# 选择 1. 数据工程 -> 1. 数据更新
+```
+
+或直接运行：
+```bash
+python3 scripts/data_update_v2.py
+python3 scripts/fix_data_quality_v2.py
+```
+
+### 4. 运行每日主控流程
+
+**⭐推荐方式**（通过主入口）：
+```bash
+python3 a_stock_manager.py
+# 选择 2. 因子研发 -> 2. 每日主控流程 (完整流水线)
+```
+
+**传统方式**：
+```bash
+# 运行盘前推送（工作日8:00）
+python3 scripts/unified_daily_push.py --type morning
+
+# 运行日报推送（工作日18:30）
+python3 scripts/unified_daily_push.py --type evening
+
+# 运行回测
+python3 scripts/run_backtest.py
+
+# 安装定时任务
+chmod +x scripts/install_cron_tasks.sh
+./scripts/install_cron_tasks.sh
+
+# 运行系统健康检查
+python3 scripts/health_check.py
+```
+
+---
+
+## 📁 目录结构
+
+```
+a-stock-advisor/
+├── a_stock_manager.py          # ✅ 统一命令行入口 ⭐
+├── MANUAL.md                   # ✅ 完整手册
+├── README.md                   # ✅ 项目说明
+├── scripts/                    # ✅ 核心脚本（20个）
+│   ├── daily_master.py         # ⭐ 完整主控流程（推荐）
+│   ├── data_update_v2.py       # 数据更新
+│   ├── fix_data_quality_v2.py  # 数据质量修复
+│   ├── is_trading_day.py       # 交易日判断
+│   ├── unified_daily_push.py   # 统一日报推送
+│   ├── morning_push_daemon.py  # 盘前推送守护
+│   ├── paper_trading_push_v2.py # 模拟交易推送
+│   ├── push_monitor.py         # 推送监控
+│   ├── market_monitor.py       # 市场监控
+│   ├── portfolio_monitor.py    # 组合监控
+│   ├── enhanced_monitor.py     # 增强监控
+│   ├── monitor_collector.py    # 监控收集
+│   ├── health_check.py         # 系统健康检查
+│   ├── run_backtest.py         # 运行回测
+│   ├── run_simulation.py       # 运行模拟
+│   ├── run_factor_backtest.py  # 因子回测
+│   ├── run_innovation_lab.py   # 创新实验室
+│   ├── feishu_pusher.py        # 飞书推送
+│   ├── push_offline_fallback.py # 离线推送备选
+│   ├── official_report.py      # 官方报告
+│   ├── install_cron_tasks.sh   # 安装定时任务
+│   ├── install_cron_v2.sh      # 安装定时任务V2
+│   └── verify_system.sh        # 系统验证
+├── code/                       # ✅ 核心代码模块
+│   ├── backtest/               # 回测系统
+│   ├── data/                   # 数据处理
+│   ├── portfolio/              # 投资组合管理
+│   ├── risk/                   # 风险管理
+│   ├── strategy/               # 策略系统
+│   ├── system/                 # 系统管理
+│   ├── tests/                  # 测试代码
+│   ├── trader/                 # 交易员辅助
+│   └── utils/                  # 工具函数
+├── config/                     # ✅ 配置文件
+├── data/                       # ✅ 数据目录
+├── reports/                    # ✅ 报告目录
+├── docs/                       # ✅ 技术文档
+├── archive/                    # 📦 归档内容（需要的话可以恢复）
+│   ├── old_scripts/            # 旧脚本
+│   ├── old_docs/               # 旧文档
+│   ├── frontend/               # 前端系统
+│   ├── code/                   # 代码模块库
+│   └── examples/               # 示例代码
+├── .gitignore
+├── LICENSE
+├── VERSION
+├── CHANGELOG.md
+└── requirements.txt
+```
 
 ---
 
@@ -45,136 +183,6 @@
 11. **长期持仓推荐** - 高股息+低Beta，稳健型配置
 12. **历史决策跟踪** - 决策内容、执行情况、结果
 13. **明日计划** - 具体行动计划
-
----
-
-## 🚀 快速开始
-
-### 1. 专业日报推送（v4.0）
-
-```bash
-cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor
-python3 scripts/a_stock_push_v4.py
-```
-
-### 2. α因子选股
-
-```python
-import sys
-sys.path.append('code')
-from alpha_stock_selector import AlphaStockSelector
-import pandas as pd
-
-selector = AlphaStockSelector()
-# 加载数据并选股
-df = pd.read_pickle('data/akshare_real_data_fixed.pkl')
-selected_stocks, portfolio_config = selector.select_stocks(df, n=10)
-```
-
-### 3. 持仓检查
-
-```python
-import sys
-sys.path.append('code')
-from portfolio_tracker import PortfolioTracker
-
-tracker = PortfolioTracker()
-summary = tracker.get_portfolio_summary()
-print(summary)
-```
-
-### 4. 动态因子权重系统（v5.0新增）
-
-```python
-from multi_factor_model import DynamicFactorWeightSystem, RollingICCalculator
-
-# 创建动态权重系统
-weight_system = DynamicFactorWeightSystem(
-    ic_window=20,
-    ic_threshold=0.02,
-    ir_threshold=0.5,
-    min_weight=0.05,
-    max_weight=0.40
-)
-
-# 更新权重
-weights = weight_system.update_weights(factor_data, return_data, date='2026-03-03')
-print(f"当前因子权重: {weights}")
-
-# 获取权重稳定性
-stability = weight_system.get_weight_stability()
-print(f"权重稳定性: {stability}")
-
-# 获取因子有效性报告
-report = weight_system.get_factor_effectiveness_report()
-print(report)
-```
-
-### 5. 滚动IC计算
-
-```python
-from multi_factor_model import RollingICCalculator
-
-calculator = RollingICCalculator(window=20, min_periods=10)
-ic_df = calculator.calculate_rolling_ic(factor_series, return_series)
-
-# 获取IC衰减信息
-decay_info = calculator.get_ic_decay(ic_df['ic'])
-print(f"IC衰减率: {decay_info['decay_rate']}")
-print(f"半衰期: {decay_info['half_life']}")
-```
-
----
-
-## 📁 目录结构
-
-```
-a-stock-advisor/
-├── code/                      # 核心代码
-│   ├── alpha_stock_selector.py    # α因子选股系统（含中性化）
-│   ├── multi_factor_model.py      # 多因子模型（含动态权重系统）
-│   ├── market_wide_selector.py    # 全市场选股（含IC计算优化）
-│   ├── risk_calculator.py         # 风险计算（含因子风险模型）
-│   ├── ml_factor_combiner.py      # ML因子组合（借鉴Qlib/Qbot）
-│   ├── event_engine.py            # 事件驱动引擎（借鉴VNPy）
-│   ├── portfolio_tracker.py       # 持仓跟踪系统
-│   ├── rebalance_strategy.py      # 换仓策略系统
-│   ├── risk_controller.py         # 风控系统
-│   ├── innovation_lab.py          # 因子创新实验室
-│   ├── overfitting_detection.py   # 过拟合检测
-│   ├── backtest_engine_v2.py      # 回测引擎V2
-│   ├── system/                    # 系统管理
-│   │   └── system_manager.py      # 系统管理器（含插件系统）
-│   ├── data/                      # 数据处理
-│   │   ├── multi_source_fetcher.py     # 多数据源获取
-│   │   └── data_quality_framework.py   # 数据质量框架
-│   ├── backtest/                  # 回测系统
-│   │   ├── backtest_engine_v2.py       # 回测引擎V2
-│   │   └── real_time_trading.py        # 实时交易接口
-│   ├── risk/                      # 风险管理
-│   │   ├── fund_management.py          # 资金管理系统
-│   │   └── risk_calculator.py          # 风险计算
-├── scripts/                   # 执行脚本
-│   ├── a_stock_push_v5.py         # 日报推送系统v5
-│   ├── a_stock_daily_report.py    # 日报推送系统
-│   ├── auto_push_system.py        # 自动推送系统
-│   ├── data_update.py             # 数据更新脚本
-│   └── health_check.py            # 系统健康检查
-├── config/                   # 配置文件
-│   ├── feishu_config.json         # 飞书推送配置
-│   ├── risk_limits.json           # 风控阈值配置
-│   └── cron_config.json           # Cron任务配置
-├── data/                     # 数据文件
-│   ├── portfolio_state.json       # 持仓状态
-│   ├── selection_result.json      # 选股结果
-│   └── akshare_real_data_fixed.pkl # A股真实数据
-├── docs/                     # 文档
-│   ├── integration_plan.md        # 开源项目融合方案
-│   ├── PUSH_STANDARD_FLOW.md      # 推送标准流程
-│   └── PUSH_WORKFLOW_OPTIMIZATION.md # 推送流程优化
-└── reports/                  # 报告输出
-    └── a_stock_daily_*.md        # 日报推送
-```
 
 ---
 
@@ -230,19 +238,40 @@ a-stock-advisor/
 - 组合最大回撤：-15%
 - 单股最大仓位：12%
 
-### 5. 因子风险模型（v5.0新增）
+**压力测试：**
+- 2008年式大跌（-50%）
+- 2015年式股灾（-40%）
+- 2020年式疫情（-30%）
+- 2024年式震荡（-5%）
+- 科技泡沫破裂（-60%）
 
-**核心功能：**
-- 因子收益率估计（截面回归）
-- 因子协方差矩阵估计（带收缩估计）
-- 组合因子暴露计算
-- 因子风险归因分析
-- 暴露阈值监控
-- 暴露趋势追踪
+### 5. 动态因子权重系统（v5.0新增）
 
-**使用示例：**
 ```python
-from risk_calculator import FactorRiskModel, FactorExposureMonitor
+from code.strategy.multi_factor_model import DynamicFactorWeightSystem, RollingICCalculator
+
+# 创建动态权重系统
+weight_system = DynamicFactorWeightSystem(
+    ic_window=20,
+    ic_threshold=0.02,
+    ir_threshold=0.5,
+    min_weight=0.05,
+    max_weight=0.40
+)
+
+# 更新权重
+weights = weight_system.update_weights(factor_data, return_data, date='2026-03-03')
+print(f"当前因子权重: {weights}")
+
+# 获取权重稳定性
+stability = weight_system.get_weight_stability()
+print(f"权重稳定性: {stability}")
+```
+
+### 6. 因子风险模型（v5.0新增）
+
+```python
+from code.risk.risk_calculator import FactorRiskModel, FactorExposureMonitor
 
 # 因子风险模型
 risk_model = FactorRiskModel(lookback_period=252)
@@ -256,17 +285,10 @@ monitor.track_exposure(date, portfolio_exposure)
 report = monitor.generate_exposure_report()
 ```
 
-### 6. 因子中性化（v5.0新增）
+### 7. 因子中性化（v5.0新增）
 
-**中性化方法：**
-- 行业中性化：`industry_neutralize()`
-- 市值中性化：`market_cap_neutralize()` (回归法/分位数法)
-- 双重中性化：`double_neutralize()` (顺序法/正交法)
-- 批量中性化：`neutralize_all_factors()`
-
-**使用示例：**
 ```python
-from alpha_stock_selector import AlphaStockSelector
+from code.strategy.alpha_stock_selector import AlphaStockSelector
 
 selector = AlphaStockSelector()
 
@@ -283,17 +305,10 @@ neutral_factor = selector.double_neutralize(data, 'PE_TTM', 'industry', 'market_
 neutralized_data = selector.neutralize_all_factors(data, neutralize_type='double')
 ```
 
-### 7. ML因子组合（v5.0新增，借鉴Qlib/Qbot）
+### 8. ML因子组合（v5.0新增）
 
-**核心功能：**
-- 支持多种模型：GBDT、随机森林、Ridge、Lasso
-- 集成多模型预测
-- 自动特征重要性计算
-- 交叉验证性能评估
-
-**使用示例：**
 ```python
-from ml_factor_combiner import MLFactorCombiner, EnsembleFactorCombiner
+from code.strategy.ml_factor_combiner import MLFactorCombiner, EnsembleFactorCombiner
 
 # 单模型因子组合
 combiner = MLFactorCombiner(model_type='gbdt')
@@ -307,116 +322,26 @@ ensemble_result = ensemble.fit(factor_exposures, future_returns)
 ensemble_predictions = ensemble.predict(current_factor_exposures)
 ```
 
-### 8. 事件驱动引擎（v5.0新增，借鉴VNPy）
-
-**核心功能：**
-- 事件驱动架构
-- 解耦数据层、策略层、执行层
-- 支持异步事件处理
-- 可扩展的处理器注册机制
-
-**使用示例：**
-```python
-from event_engine import EventEngine, EventType, Event, QuantTradingSystem
-
-# 创建事件引擎
-engine = EventEngine()
-
-# 注册事件处理器
-engine.register(EventType.MARKET_DATA, on_market_data)
-engine.register(EventType.TRADE_SIGNAL, on_signal)
-
-# 启动引擎
-engine.start()
-
-# 发送事件
-engine.put(Event(EventType.MARKET_DATA, market_data))
-```
-
-### 9. 系统管理器（v5.0新增）
-
-**核心功能：**
-- 统一管理系统组件
-- 提供插件系统
-- 配置管理
-- 系统健康检查
-- 数据处理管道
-- 系统状态报告
-
-**使用示例：**
-```python
-from system.system_manager import SystemManager, DataPipeline
-
-# 创建系统管理器
-system_manager = SystemManager()
-
-# 注册组件
-system_manager.register_component('data_fetcher', MultiSourceFetcher())
-system_manager.register_component('backtest_engine', BacktestEngineV2())
-
-# 启动系统
-system_manager.start()
-
-# 运行健康检查
-health_status = system_manager.health_check()
-
-# 生成系统报告
-system_manager.save_system_report()
-
-# 关闭系统
-system_manager.shutdown()
-```
-
-### 10. 数据处理管道（v5.0新增）
-
-**核心功能：**
-- 模块化数据处理步骤
-- 可配置的处理流程
-- 错误处理和日志记录
-- 灵活的步骤添加和管理
-
-**使用示例：**
-```python
-from system.system_manager import DataPipeline
-
-# 创建数据处理管道
-pipeline = DataPipeline(system_manager)
-
-# 添加处理步骤
-def fetch_data_step(data):
-    fetcher = system_manager.get_component('data_fetcher')
-    # 获取数据
-    return data
-
-def quality_check_step(data):
-    quality_framework = system_manager.get_component('data_quality')
-    # 数据质量检查
-    return data
-
-pipeline.add_step('fetch_data', fetch_data_step)
-pipeline.add_step('quality_check', quality_check_step)
-
-# 运行管道
-result = pipeline.run({})
-```
-
 ---
 
 ## 📊 数据源
 
 **主要数据源（按优先级）：**
-1. **智兔数服** ⭐⭐⭐⭐⭐ - 免费，实时数据，包含财务指标
-2. **腾讯财经** ⭐⭐⭐⭐ - 免费，数据格式规整，更新频率约3秒
-3. **新浪财经** ⭐⭐⭐⭐ - 免费，老牌数据源，支持买卖五档盘口数据
-4. **AKShare** ⭐⭐⭐⭐ - 完全免费，无限制，数据全面
-5. **Baostock** ⭐⭐⭐ - 开源免费，数据质量高
-6. **Tushare** ⭐⭐⭐⭐ - 积分制，数据最完整
+1. **智兔数服** ⭐⭐⭐⭐⭐ - 免费（需token），实时数据，包含财务指标
+2. **腾讯财经** ⭐⭐⭐⭐ - 完全免费，数据格式规整，更新频率约3秒
+3. **新浪财经** ⭐⭐⭐⭐ - 完全免费，老牌数据源，支持买卖五档盘口数据
+4. **AKShare** ⭐⭐⭐⭐ - 完全免费，无限制，数据全面，覆盖面广
+5. **Baostock** ⭐⭐⭐ - 完全免费，适合学习，数据量相对较少
+6. **Tushare Pro** ⭐⭐⭐⭐ - 积分制（免费额度充足），数据最完整
 
 **数据质量：**
-- 单日涨跌幅：≤ ±10%（A股限制）
+- 单日涨跌幅：≤ ±10%（A股限制），ST股±5%
 - 价格：> 0（无负值）
+- 成交量：≥ 0（无负值）
 - 波动率/均价：≤ 1.0（防止极端数据）
 - 缺失值比例：< 1%（高完整性）
+- 时间连续性：工作日连续（需处理停牌日）
+- 复权一致性：前复权（确保价格可比）
 
 **数据缓存：**
 - 缓存过期时间：60秒
@@ -431,13 +356,26 @@ result = pipeline.run({})
 
 ```bash
 # 工作日8:00 - 盘前推送
-0 8 * * 1-5 cd /path/to/a-stock-advisor && python3 scripts/a_stock_daily_report.py >> logs/morning_push.log 2>&1
+0 8 * * 1-5 cd /path/to/a-stock-advisor && python3 scripts/unified_daily_push.py --type morning >> logs/morning_push.log 2>&1
 
 # 工作日18:30 - 日报推送
-30 18 * * 1-5 cd /path/to/a-stock-advisor && python3 scripts/a_stock_daily_report.py >> logs/daily_push.log 2>&1
+30 18 * * 1-5 cd /path/to/a-stock-advisor && python3 scripts/unified_daily_push.py --type evening >> logs/daily_push.log 2>&1
 
 # 每日3:00 - 系统健康检查
 0 3 * * * cd /path/to/a-stock-advisor && python3 scripts/health_check.py >> logs/health_check.log 2>&1
+
+# 每日4:00 - 数据更新
+0 4 * * * cd /path/to/a-stock-advisor && python3 scripts/data_update_v2.py >> logs/data_update.log 2>&1
+```
+
+### 安装定时任务
+
+```bash
+# 给脚本添加执行权限
+chmod +x scripts/install_cron_tasks.sh
+
+# 运行安装脚本
+./scripts/install_cron_tasks.sh
 ```
 
 ---
@@ -459,11 +397,14 @@ result = pipeline.run({})
 5. **提交部署** - Git commit、推送到Gitee、更新版本号
 
 **检查清单：**
-- [ ] 文档已更新
-- [ ] 代码已测试
-- [ ] 数据格式正确
-- [ ] 异常已处理
-- [ ] Git已提交
+- [ ] 文档已更新（README.md、MANUAL.md）
+- [ ] 代码已测试（功能测试、边界测试）
+- [ ] 数据格式正确（符合数据质量标准）
+- [ ] 异常已处理（错误处理、日志记录）
+- [ ] Git已提交（包含清晰的commit message）
+- [ ] 依赖已更新（requirements.txt）
+- [ ] 配置已更新（config/目录下的配置文件）
+- [ ] 测试已通过（运行测试脚本）
 
 ---
 
@@ -474,7 +415,7 @@ result = pipeline.run({})
 `config/feishu_config.json`:
 ```json
 {
-  "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+  "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_url"
 }
 ```
 
@@ -490,13 +431,48 @@ result = pipeline.run({})
 }
 ```
 
+### Cron任务配置
+
+`config/cron_config_v2.json`:
+```json
+{
+  "morning_push": "0 8 * * 1-5",
+  "evening_push": "30 18 * * 1-5",
+  "health_check": "0 3 * * *",
+  "data_update": "0 4 * * *"
+}
+```
+
 ---
 
 ## 📚 文档
 
-- **docs/integration_plan.md** - 开源项目融合方案
-- **docs/PUSH_STANDARD_FLOW.md** - 推送标准流程
-- **docs/PUSH_WORKFLOW_OPTIMIZATION.md** - 推送流程优化
+### 设计文档
+- **docs/design/DAG.md** - 数据流图
+- **docs/design/FACTOR_STANDARDS.md** - 因子标准
+- **docs/design/INNOVATION_PLAN.md** - 创新计划
+- **docs/design/PUSH_CONTENT_DESIGN.md** - 推送内容设计
+- **docs/design/PUSH_STRATEGY_V4.md** - 推送策略
+- **docs/design/T1.6_TASK_SPEC.md** - 任务规范
+- **docs/design/TRADING_EXECUTION_SPEC.md** - 交易执行规范
+
+### 操作文档
+- **docs/operation/FEISHU_SETUP.md** - 飞书设置
+- **docs/operation/OPERATION_TARGET.md** - 操作目标
+- **docs/operation/PUSH_STANDARD_FLOW.md** - 推送标准流程
+- **docs/operation/PUSH_WORKFLOW_OPTIMIZATION.md** - 推送流程优化
+
+### 技术文档
+- **docs/technical/DATA_QUALITY_DELIVERY_REPORT.md** - 数据质量交付报告
+- **docs/technical/DataQualityFramework.md** - 数据质量框架
+- **docs/technical/README_AUTOMATION.md** - 自动化说明
+- **docs/technical/README_BACKTEST_SYSTEM.md** - 回测系统说明
+- **docs/technical/README_DATA_QUALITY.md** - 数据质量说明
+- **docs/technical/STANDARDIZED_DOCUMENTATION.md** - 标准化文档
+- **docs/technical/coding_standards.md** - 编码标准
+- **docs/technical/integration_plan.md** - 集成计划
+- **docs/technical/validation_plan.md** - 验证计划
+- **docs/technical/version_control_guide.md** - 版本控制指南
 
 ---
 
@@ -516,6 +492,15 @@ result = pipeline.run({})
 ---
 
 ## 🌟 版本历史
+
+### v5.1 (2026-03-05)
+- ✅ **创建统一命令行入口**（`a_stock_manager.py`）- 所有功能通过一个菜单管理
+- ✅ **每日主控流程**（`daily_master.py`）- 完整的因子评估、选股、回测、持仓管理和报告生成
+- ✅ **项目结构整理** - 移除重复和孤立内容，归档到 `archive/` 目录
+- ✅ **菜单优化** - 简化选项，突出推荐功能
+- ✅ **移除前端系统** - 前端无法使用，已归档
+- ✅ **移除孤立模块** - `code/` 目录大部分模块未被使用，已归档
+- ✅ **移除重复文档** - 使用说明已统一到 MANUAL.md
 
 ### v5.0 (2026-03-03)
 - ✅ 因子公式修复（毛利率公式错误修正）
@@ -568,6 +553,8 @@ pandas >= 1.5.0
 numpy >= 1.23.0
 akshare >= 1.10.0
 requests >= 2.28.0
+scipy >= 1.9.0
+scikit-learn >= 1.3.0
 ```
 
 ---

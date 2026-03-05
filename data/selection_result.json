@@ -2,87 +2,144 @@
   "selected_stocks": [
     {
       "rank": 1,
-      "stock_code": 1242,
-      "stock_name": "紫金矿业",
-      "score": 5.0750884,
-      "reasons": "基于市场活跃度推荐"
+      "stock_code": "sh688802",
+      "stock_name": "沐曦股份",
+      "score": 1.0,
+      "industry": "未知"
     },
     {
       "rank": 2,
-      "stock_code": 1008,
-      "stock_name": "中国海油",
-      "score": 4.86056442,
-      "reasons": "基于市场活跃度推荐"
+      "stock_code": "sh688809",
+      "stock_name": "强一股份",
+      "score": 0.8975,
+      "industry": "未知"
     },
     {
       "rank": 3,
-      "stock_code": 602,
-      "stock_name": "华胜天成",
-      "score": 4.50454551,
-      "reasons": "基于市场活跃度推荐"
+      "stock_code": "sz300857",
+      "stock_name": "协创数据",
+      "score": 0.88,
+      "industry": "未知"
     },
     {
       "rank": 4,
-      "stock_code": 1225,
-      "stock_name": "中国石油",
-      "score": 3.5582546,
-      "reasons": "基于市场活跃度推荐"
+      "stock_code": "sh688008",
+      "stock_name": "澜起科技",
+      "score": 0.8442,
+      "industry": "未知"
     },
     {
       "rank": 5,
-      "stock_code": 1040,
-      "stock_name": "宝丰能源",
-      "score": 3.3200589,
-      "reasons": "基于市场活跃度推荐"
+      "stock_code": "sz001309",
+      "stock_name": "德明利",
+      "score": 0.8388,
+      "industry": "未知"
     },
     {
       "rank": 6,
-      "stock_code": 1232,
-      "stock_name": "招商轮船",
-      "score": 3.1214925,
-      "reasons": "基于市场活跃度推荐"
+      "stock_code": "sz002916",
+      "stock_name": "深南电路",
+      "score": 0.7077,
+      "industry": "未知"
     },
     {
       "rank": 7,
-      "stock_code": 3271,
-      "stock_name": "湖南黄金",
-      "score": 2.94284,
-      "reasons": "基于市场活跃度推荐"
+      "stock_code": "sh688279",
+      "stock_name": "峰岹科技",
+      "score": 0.6658,
+      "industry": "未知"
     },
     {
       "rank": 8,
-      "stock_code": 648,
-      "stock_name": "中金黄金",
-      "score": 2.8352792,
-      "reasons": "基于市场活跃度推荐"
+      "stock_code": "sh688795",
+      "stock_name": "摩尔线程",
+      "score": 0.6023,
+      "industry": "未知"
     },
     {
       "rank": 9,
-      "stock_code": 4556,
-      "stock_name": "新易盛",
-      "score": 2.83095134,
-      "reasons": "基于市场活跃度推荐"
+      "stock_code": "sh688775",
+      "stock_name": "影石创新",
+      "score": 0.5967,
+      "industry": "未知"
     },
     {
       "rank": 10,
-      "stock_code": 655,
-      "stock_name": "烽火通信",
-      "score": 2.681085,
-      "reasons": "基于市场活跃度推荐"
+      "stock_code": "sh688667",
+      "stock_name": "菱电电控",
+      "score": 0.5552,
+      "industry": "未知"
+    },
+    {
+      "rank": 11,
+      "stock_code": "sz301225",
+      "stock_name": "恒勃股份",
+      "score": 0.5458,
+      "industry": "未知"
+    },
+    {
+      "rank": 12,
+      "stock_code": "sh688717",
+      "stock_name": "艾罗能源",
+      "score": 0.5245,
+      "industry": "未知"
+    },
+    {
+      "rank": 13,
+      "stock_code": "sh603444",
+      "stock_name": "吉比特",
+      "score": 0.5063,
+      "industry": "未知"
+    },
+    {
+      "rank": 14,
+      "stock_code": "sh688228",
+      "stock_name": "开普云",
+      "score": 0.5015,
+      "industry": "未知"
+    },
+    {
+      "rank": 15,
+      "stock_code": "sz301205",
+      "stock_name": "联特科技",
+      "score": 0.5002,
+      "industry": "未知"
+    },
+    {
+      "rank": 16,
+      "stock_code": "sh600809",
+      "stock_name": "山西汾酒",
+      "score": 0.4934,
+      "industry": "未知"
+    },
+    {
+      "rank": 17,
+      "stock_code": "sh688072",
+      "stock_name": "拓荆科技",
+      "score": 0.4846,
+      "industry": "未知"
+    },
+    {
+      "rank": 18,
+      "stock_code": "sz301345",
+      "stock_name": "涛涛车业",
+      "score": 0.4736,
+      "industry": "未知"
+    },
+    {
+      "rank": 19,
+      "stock_code": "sh688623",
+      "stock_name": "双元科技",
+      "score": 0.4706,
+      "industry": "未知"
+    },
+    {
+      "rank": 20,
+      "stock_code": "sz300570",
+      "stock_name": "太辰光",
+      "score": 0.4659,
+      "industry": "未知"
     }
   ],
-  "portfolio_config": {
-    "n": 10,
-    "rebalance_frequency": "daily",
-    "weighting_method": "equal_weight",
-    "score_threshold": 0,
-    "factor_weights": {}
-  },
-  "timestamp": "2026-03-02T14:07:57.026420",
-  "data_month": "daily",
-  "control_summary": {
-    "industry": "行业分散: N/A",
-    "volatility": "未应用",
-    "drawdown": "未应用"
-  }
+  "timestamp": "2026-03-05T18:30:31.500470"
 }

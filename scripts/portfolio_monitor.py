@@ -61,8 +61,8 @@ class PortfolioMonitor:
         positions = portfolio['positions']
 
         # 获取持仓股票代码
-        stock_codes = [pos['code'] for pos in positions]
-        weights = [pos.get('weight', 0) for pos in positions]
+        stock_codes = [pos['stock_code'] for pos in positions]
+        weights = [pos.get('current_value', 0) for pos in positions]
         total_weight = sum(weights)
 
         if total_weight == 0:
@@ -76,7 +76,15 @@ class PortfolioMonitor:
         for code, weight in zip(stock_codes, weights):
             # 从数据中获取该股票的20日收益率
             try:
-                stock_hist = stock_data[stock_data['stock_code'] == code].copy()
+                # 处理股票代码格式：sh601899 -> 601899 或 300000
+                code_num = code.replace('sh', '').replace('sz', '').replace('cn', '')
+                
+                # 尝试多种匹配方式
+                stock_hist = stock_data[
+                    (stock_data['stock_code'] == code) | 
+                    (stock_data['stock_code'] == code_num) |
+                    (stock_data['stock_code'].str.contains(code_num, na=False))
+                ].copy()
 
                 if len(stock_hist) < days:
                     # 如果数据不足，跳过
@@ -138,8 +146,8 @@ class PortfolioMonitor:
         positions = portfolio['positions']
 
         # 获取持仓股票代码和权重
-        stock_codes = [pos['code'] for pos in positions]
-        weights = [pos.get('weight', 0) for pos in positions]
+        stock_codes = [pos['stock_code'] for pos in positions]
+        weights = [pos.get('current_value', 0) for pos in positions]
         total_weight = sum(weights)
 
         if total_weight == 0:
@@ -152,7 +160,14 @@ class PortfolioMonitor:
 
         for code, weight in zip(stock_codes, weights):
             try:
-                stock_hist = stock_data[stock_data['stock_code'] == code].copy()
+                # 处理股票代码格式
+                code_num = code.replace('sh', '').replace('sz', '').replace('cn', '')
+                
+                stock_hist = stock_data[
+                    (stock_data['stock_code'] == code) | 
+                    (stock_data['stock_code'] == code_num) |
+                    (stock_data['stock_code'].str.contains(code_num, na=False))
+                ].copy()
 
                 if len(stock_hist) < days:
                     continue
@@ -170,7 +185,7 @@ class PortfolioMonitor:
                 continue
 
         if not all_returns:
-            return {'var': 0, 'status': '数据不足', 'level': 'warning'}
+            return {'var': 0, 'status': '数据不足', 'level': 'warning', 'value': 'N/A', 'confidence': f'{confidence:.0%}'}
 
         # 计算组合收益率
         portfolio_returns = pd.Series(all_returns)
@@ -219,14 +234,14 @@ class PortfolioMonitor:
 
         # 统计行业权重
         industry_weights = {}
-        total_weight = sum(pos.get('weight', 0) for pos in positions)
+        total_weight = sum(pos.get('current_value', 0) for pos in positions)
 
         if total_weight == 0:
             return {'deviations': [], 'status': '空仓', 'level': 'info'}
 
         for pos in positions:
             industry = pos.get('industry', '其他')
-            weight = pos.get('weight', 0) / total_weight * 100
+            weight = pos.get('current_value', 0) / total_weight * 100
             industry_weights[industry] = industry_weights.get(industry, 0) + weight
 
         # 如果没有提供基准，使用等权重作为基准
@@ -288,7 +303,7 @@ class PortfolioMonitor:
             return {'concentrations': [], 'status': '无持仓', 'level': 'info'}
 
         positions = portfolio['positions']
-        total_weight = sum(pos.get('weight', 0) for pos in positions)
+        total_weight = sum(pos.get('current_value', 0) for pos in positions)
 
         if total_weight == 0:
             return {'concentrations': [], 'status': '空仓', 'level': 'info'}
@@ -297,7 +312,7 @@ class PortfolioMonitor:
         has_warning = False
 
         for pos in positions:
-            weight = pos.get('weight', 0) / total_weight * 100
+            weight = pos.get('current_value', 0) / total_weight * 100
 
             # 判断状态
             if weight > 15:
@@ -313,7 +328,7 @@ class PortfolioMonitor:
                 level = 'info'
 
             concentrations.append({
-                'code': pos.get('code', 'N/A'),
+                'code': pos.get('stock_code', 'N/A'),
                 'name': pos.get('name', 'N/A'),
                 'weight': round(weight, 1),
                 'status': status,
@@ -345,8 +360,8 @@ class PortfolioMonitor:
         positions = portfolio['positions']
 
         # 获取持仓股票代码
-        stock_codes = [pos['code'] for pos in positions]
-        weights = [pos.get('weight', 0) for pos in positions]
+        stock_codes = [pos['stock_code'] for pos in positions]
+        weights = [pos.get('current_value', 0) for pos in positions]
         total_weight = sum(weights)
 
         if total_weight == 0:
@@ -359,30 +374,45 @@ class PortfolioMonitor:
 
         for code, weight in zip(stock_codes, weights):
             try:
-                stock_hist = stock_data[stock_data['stock_code'] == code].copy()
+                # 尝试多种匹配方式
+                code_num = code.replace('sh', '').replace('sz', '').replace('cn', '')
+                stock_hist = stock_data[
+                    (stock_data['stock_code'] == code) | 
+                    (stock_data['stock_code'] == code_num) |
+                    (stock_data['stock_code'].str.contains(code_num, na=False))
+                ].copy()
 
                 if len(stock_hist) == 0:
                     continue
 
                 stock_hist = stock_hist.sort_values('date_dt')
 
-                # 归一化价格
-                normalized_prices = stock_hist['close'] / stock_hist['close'].iloc[0]
+                # 检查close列是否存在且有值
+                if 'close' not in stock_hist.columns or stock_hist['close'].isnull().all():
+                    continue
+
+                # 归一化价格（避免除零错误）
+                first_close = stock_hist['close'].iloc[0]
+                if first_close == 0:
+                    continue
+                
+                normalized_prices = stock_hist['close'] / first_close
 
                 # 加权
                 weighted_values = normalized_prices * weight
+                weighted_values_list = weighted_values.tolist()
 
                 if len(portfolio_values) == 0:
-                    portfolio_values = weighted_values.tolist()
+                    portfolio_values = weighted_values_list
                 else:
                     # 对齐日期（简化处理）
-                    min_len = min(len(portfolio_values), len(weighted_values))
+                    min_len = min(len(portfolio_values), len(weighted_values_list))
                     portfolio_values = [
-                        portfolio_values[i] + weighted_values[i]
+                        portfolio_values[i] + weighted_values_list[i]
                         for i in range(min_len)
                     ]
             except Exception as e:
-                print(f"计算{code}净值失败: {e}")
+                print(f"计算{code}净值失败: {str(e)}")
                 continue
 
         if len(portfolio_values) < 2:

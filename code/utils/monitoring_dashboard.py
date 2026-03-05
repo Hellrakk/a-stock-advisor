@@ -15,7 +15,7 @@ import os
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from code.p0_performance_metrics import calculate_performance_metrics
+from code.backtest.p0_performance_metrics import calculate_performance_metrics
 
 
 class MonitoringDashboard:

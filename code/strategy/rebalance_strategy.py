@@ -12,7 +12,7 @@ from datetime import datetime
 import json
 import os
 
-from portfolio_tracker import PortfolioTracker, Position
+from code.portfolio.portfolio_tracker import PortfolioTracker, Position
 
 @dataclass
 class RebalancePlan:
@@ -25,10 +25,15 @@ class RebalanceStrategy:
     """换仓策略"""
     
     def __init__(self):
-        self.take_profit_threshold = 20.0  # 止盈阈值 20%
-        self.stop_loss_threshold = -10.0  # 止损阈值 -10%
+        self.base_take_profit_threshold = 20.0  # 基础止盈阈值 20%
+        self.base_stop_loss_threshold = -10.0  # 基础止损阈值 -10%
         self.max_holding_days = 60  # 最大持仓天数
         self.alpha_decline_threshold = 20.0  # α得分下降阈值 20%
+        
+        # 动态调整参数
+        self.volatility_adjustment = True  # 基于波动率调整
+        self.market_env_adjustment = True  # 基于市场环境调整
+        self.time_based_adjustment = True  # 基于持仓时间调整
         
         self.rebalance_history: List[RebalancePlan] = []
         self.history_file = 'data/rebalance_history.json'
@@ -71,47 +76,95 @@ class RebalanceStrategy:
         with open(self.history_file, 'w', encoding='utf-8') as f:
             json.dump(history_data, f, ensure_ascii=False, indent=2)
     
-    def check_take_profit(self, position: Position, price: float) -> Dict:
+    def get_dynamic_thresholds(self, position: Position, market_volatility: float = 0.15, market_trend: str = 'neutral') -> Tuple[float, float]:
+        """
+        计算动态止盈止损阈值
+        
+        Args:
+            position: 持仓对象
+            market_volatility: 市场波动率
+            market_trend: 市场趋势 ('bull', 'bear', 'neutral')
+            
+        Returns:
+            (动态止盈阈值, 动态止损阈值)
+        """
+        take_profit = self.base_take_profit_threshold
+        stop_loss = self.base_stop_loss_threshold
+        
+        # 基于波动率调整
+        if self.volatility_adjustment:
+            volatility_factor = min(2.0, max(0.5, market_volatility / 0.15))
+            take_profit = self.base_take_profit_threshold * volatility_factor
+            stop_loss = self.base_stop_loss_threshold * volatility_factor
+        
+        # 基于市场环境调整
+        if self.market_env_adjustment:
+            if market_trend == 'bull':
+                take_profit *= 1.2  # 牛市提高止盈
+                stop_loss *= 0.8   # 牛市放宽止损
+            elif market_trend == 'bear':
+                take_profit *= 0.8  # 熊市降低止盈
+                stop_loss *= 1.2   # 熊市收紧止损
+        
+        # 基于持仓时间调整
+        if self.time_based_adjustment:
+            if position.holding_days > 30:
+                take_profit *= 0.8  # 持仓超过30天，降低止盈阈值
+                stop_loss *= 0.9   # 持仓超过30天，放宽止损阈值
+        
+        return take_profit, stop_loss
+    
+    def check_take_profit(self, position: Position, price: float, market_volatility: float = 0.15, market_trend: str = 'neutral') -> Dict:
         """
         检查是否触发止盈
         
         Args:
             position: 持仓对象
             price: 当前价格
+            market_volatility: 市场波动率
+            market_trend: 市场趋势
             
         Returns:
             触发信息 {'triggered': bool, 'action': str, 'reason': str}
         """
         profit_pct = (price - position.cost_price) / position.cost_price * 100
         
-        if profit_pct >= self.take_profit_threshold:
+        # 获取动态止盈阈值
+        take_profit_threshold, _ = self.get_dynamic_thresholds(position, market_volatility, market_trend)
+        
+        if profit_pct >= take_profit_threshold:
             # 分批止盈: 先卖出一半
             action = 'reduce'
-            reason = f"止盈触发: 收益{profit_pct:.1f}% >= {self.take_profit_threshold}%, 建议分批止盈"
-            return {'triggered': True, 'action': action, 'reason': reason, 'profit_pct': profit_pct}
+            reason = f"止盈触发: 收益{profit_pct:.1f}% >= {take_profit_threshold:.1f}% (动态阈值), 建议分批止盈"
+            return {'triggered': True, 'action': action, 'reason': reason, 'profit_pct': profit_pct, 'threshold': take_profit_threshold}
         
-        return {'triggered': False, 'action': None, 'reason': '', 'profit_pct': profit_pct}
+        return {'triggered': False, 'action': None, 'reason': '', 'profit_pct': profit_pct, 'threshold': take_profit_threshold}
     
-    def check_stop_loss(self, position: Position, price: float) -> Dict:
+    def check_stop_loss(self, position: Position, price: float, market_volatility: float = 0.15, market_trend: str = 'neutral') -> Dict:
         """
         检查是否触发止损
         
         Args:
             position: 持仓对象
             price: 当前价格
+            market_volatility: 市场波动率
+            market_trend: 市场趋势
             
         Returns:
             触发信息
         """
         profit_pct = (price - position.cost_price) / position.cost_price * 100
         
-        if profit_pct <= self.stop_loss_threshold:
+        # 获取动态止损阈值
+        _, stop_loss_threshold = self.get_dynamic_thresholds(position, market_volatility, market_trend)
+        
+        if profit_pct <= stop_loss_threshold:
             # 立即止损: 全部卖出
             action = 'sell'
-            reason = f"止损触发: 亏损{profit_pct:.1f}% <= {self.stop_loss_threshold}%, 立即清仓"
-            return {'triggered': True, 'action': action, 'reason': reason, 'profit_pct': profit_pct}
+            reason = f"止损触发: 亏损{profit_pct:.1f}% <= {stop_loss_threshold:.1f}% (动态阈值), 立即清仓"
+            return {'triggered': True, 'action': action, 'reason': reason, 'profit_pct': profit_pct, 'threshold': stop_loss_threshold}
         
-        return {'triggered': False, 'action': None, 'reason': '', 'profit_pct': profit_pct}
+        return {'triggered': False, 'action': None, 'reason': '', 'profit_pct': profit_pct, 'threshold': stop_loss_threshold}
     
     def check_time_trigger(self, position: Position, current_prices: Dict) -> Dict:
         """
@@ -213,7 +266,9 @@ class RebalanceStrategy:
     def evaluate_rebalancing(self, portfolio_tracker: PortfolioTracker,
                             stock_data: pd.DataFrame,
                             alpha_scores: pd.Series,
-                            target_portfolio: Dict = None) -> RebalancePlan:
+                            target_portfolio: Dict = None, 
+                            market_volatility: float = 0.15,
+                            market_trend: str = 'neutral') -> RebalancePlan:
         """
         评估是否需要调仓并生成调仓计划
         
@@ -222,6 +277,8 @@ class RebalanceStrategy:
             stock_data: 股票数据 (index: stock_code)
             alpha_scores: α得分 Series
             target_portfolio: 目标组合配置（如果为None则不进行目标配置调整）
+            market_volatility: 市场波动率
+            market_trend: 市场趋势 ('bull', 'bear', 'neutral')
             
         Returns:
             换仓计划
@@ -233,6 +290,8 @@ class RebalanceStrategy:
         print("🔄 换仓策略评估")
         print("=" * 60)
         print(f"日期: {today}")
+        print(f"市场波动率: {market_volatility:.2f}")
+        print(f"市场趋势: {market_trend}")
         print("")
         
         # 1. 对每个持仓检查所有触发条件
@@ -247,13 +306,13 @@ class RebalanceStrategy:
             original_alpha = position.alpha_score
             current_prices = {stock_code: current_price}
             
-            # 检查止盈
-            take_profit_result = self.check_take_profit(position, current_price)
+            # 检查止盈（使用动态阈值）
+            take_profit_result = self.check_take_profit(position, current_price, market_volatility, market_trend)
             if take_profit_result['triggered']:
                 triggers.append(('止盈', take_profit_result))
             
-            # 检查止损
-            stop_loss_result = self.check_stop_loss(position, current_price)
+            # 检查止损（使用动态阈值）
+            stop_loss_result = self.check_stop_loss(position, current_price, market_volatility, market_trend)
             if stop_loss_result['triggered']:
                 triggers.append(('止损', stop_loss_result))
             

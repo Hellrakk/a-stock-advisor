@@ -1,0 +1,62 @@
+{
+    "version": "1.0.0",
+    "last_updated": "2026-03-06",
+    "features": {
+        "data_engineering": {
+            "enabled": true,
+            "auto_update": false,
+            "description": "数据工程模块"
+        },
+        "factor_research": {
+            "enabled": true,
+            "auto_mining": false,
+            "description": "因子研发模块"
+        },
+        "strategy_development": {
+            "enabled": true,
+            "description": "策略开发模块"
+        },
+        "backtest_verification": {
+            "enabled": true,
+            "description": "回测验证模块"
+        },
+        "live_trading": {
+            "enabled": true,
+            "paper_trading_only": true,
+            "description": "实盘工程模块"
+        },
+        "system_management": {
+            "enabled": true,
+            "description": "系统管理模块"
+        },
+        "push_system": {
+            "enabled": true,
+            "feishu_enabled": true,
+            "description": "推送系统"
+        },
+        "risk_control": {
+            "enabled": true,
+            "strict_mode": true,
+            "description": "风控系统"
+        },
+        "ml_factor_combiner": {
+            "enabled": true,
+            "model_type": "gbdt",
+            "description": "ML因子组合器"
+        },
+        "dynamic_factor_weight": {
+            "enabled": true,
+            "rolling_window": 20,
+            "description": "动态因子权重系统"
+        },
+        "rdagent": {
+            "enabled": false,
+            "fallback_to_local": true,
+            "description": "RDAgent因子挖掘"
+        },
+        "event_engine": {
+            "enabled": false,
+            "description": "事件驱动引擎"
+        }
+    }
+}

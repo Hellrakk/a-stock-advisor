@@ -5,6 +5,7 @@
 """
 
 import logging
+import os
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -448,7 +449,11 @@ class MultiSourceStockFetcher:
     def _init_tushare(self):
         """初始化Tushare数据源"""
         try:
-            tushare_token = "14423f1b4d5af6dc47dd1dc8d9d5994dc05d10dbb86cc2d0da753d25"
+            tushare_token = os.environ.get("TUSHARE_TOKEN", "")
+            if not tushare_token:
+                logger.warning("TUSHARE_TOKEN 环境变量未设置，跳过Tushare数据源")
+                self.tushare_available = False
+                return
             self.tushare_source = TushareDataSource(tushare_token)
             self.tushare_available = self.tushare_source.test_connection()
             self.metadata['sources_tested'].append({
@@ -462,7 +467,11 @@ class MultiSourceStockFetcher:
     def _init_zhitu(self):
         """初始化智兔数服数据源"""
         try:
-            zhitu_token = "37171346-847B-47D5-91F8-BCABDDF3C845"
+            zhitu_token = os.environ.get("ZHITU_TOKEN", "")
+            if not zhitu_token:
+                logger.warning("ZHITU_TOKEN 环境变量未设置，跳过智兔数服数据源")
+                self.zhitu_available = False
+                return
             self.zhitu_source = ZhituDataSource(zhitu_token)
             self.zhitu_available = self.zhitu_source.test_connection()
             self.metadata['sources_tested'].append({
@@ -545,19 +554,23 @@ class MultiSourceStockFetcher:
                 self.metadata['active_source'] = "Cache"
                 return df
         
-        # 硬编码的主要A股列表
-        MAJOR_STOCKS = [
-            ('000001', '平安银行'), ('000002', '万科A'), ('000063', '中兴通讯'),
-            ('000333', '美的集团'), ('000651', '格力电器'), ('000725', '京东方A'),
-            ('000858', '五粮液'), ('002594', '比亚迪'), ('002415', '海康威视'),
-            ('600000', '浦发银行'), ('600036', '招商银行'), ('600519', '贵州茅台'),
-            ('600900', '长江电力'), ('601318', '中国平安'), ('601888', '中国中免'),
-            ('601939', '建设银行'), ('603259', '药明康德')
-        ]
+        try:
+            from code.config import DEFAULT_STOCK_NAMES
+            MAJOR_STOCKS = [(code.lstrip('sh').lstrip('sz'), name) for code, name in DEFAULT_STOCK_NAMES.items()]
+            logger.info("使用配置文件中的股票列表")
+        except ImportError:
+            MAJOR_STOCKS = [
+                ('000001', '平安银行'), ('000002', '万科A'), ('000063', '中兴通讯'),
+                ('000333', '美的集团'), ('000651', '格力电器'), ('000725', '京东方A'),
+                ('000858', '五粮液'), ('002594', '比亚迪'), ('002415', '海康威视'),
+                ('600000', '浦发银行'), ('600036', '招商银行'), ('600519', '贵州茅台'),
+                ('600900', '长江电力'), ('601318', '中国平安'), ('601888', '中国中免'),
+                ('601939', '建设银行'), ('603259', '药明康德')
+            ]
+            logger.info("使用默认股票列表")
         
-        logger.info("使用硬编码的主要A股列表")
         df = pd.DataFrame(MAJOR_STOCKS, columns=['code', 'name'])
-        self.metadata['active_source'] = "Hardcoded"
+        self.metadata['active_source'] = "Config"
         return df
     
     def _check_akshare(self) -> bool:
@@ -1684,7 +1697,11 @@ if __name__ == "__main__":
         print(f"  {data['name']}: {data['price']:.2f}点, {data['change_pct']:+.2f}%")
     
     print("\n【个股完整数据】")
-    test_codes = ['sh600000', 'sh601899', 'sz002703']
+    try:
+        from code.config import TEST_STOCK_CODES
+        test_codes = TEST_STOCK_CODES
+    except ImportError:
+        test_codes = ['sh600000', 'sh601899', 'sz002703']
     for code in test_codes:
         info = fetcher.get_stock_full_info(code)
         print(f"\n  {info.get('name', 'N/A')}({code}):")

@@ -14,15 +14,15 @@
       "max_retries": 2
     },
     {
-      "name": "morning_push",
-      "description": "盘前推送（8:00）",
+      "name": "morning_master_push",
+      "description": "早晨主控流程+推送（8:00）- 包含数据、因子、选股、持仓、报告、推送全流程",
       "schedule": "0 8 * * 1-5",
-      "command": "cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor && /opt/homebrew/bin/python3 scripts/paper_trading_push.py >> logs/morning_push.log 2>&1",
+      "command": "cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor && /opt/homebrew/bin/python3 scripts/daily_master.py >> logs/morning_master.log 2>&1",
       "enabled": true,
       "priority": "critical",
-      "resource_profile": "light",
+      "resource_profile": "medium",
       "dependencies": ["morning_data_check"],
-      "timeout_minutes": 10,
+      "timeout_minutes": 30,
       "on_failure": "alert",
       "max_retries": 0
     },
@@ -41,9 +41,9 @@
     },
     {
       "name": "daily_selection_push",
-      "description": "每日选股和推送（18:30）",
+      "description": "每日选股和推送（18:30）- 盘后完整流程",
       "schedule": "30 18 * * 1-5",
-      "command": "cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor && /opt/homebrew/bin/python3 run_daily.py >> logs/daily_run.log 2>&1",
+      "command": "cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor && /opt/homebrew/bin/python3 scripts/daily_master.py >> logs/daily_master.log 2>&1",
       "enabled": true,
       "priority": "critical",
       "resource_profile": "medium",
@@ -90,6 +90,32 @@
       "timeout_minutes": 120,
       "on_failure": "log",
       "max_retries": 0
+    },
+    {
+      "name": "weekly_factor_review",
+      "description": "周度因子评估（周日凌晨 3:00）- 因子有效性评估和权重更新",
+      "schedule": "0 3 * * 0",
+      "command": "cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor && /opt/homebrew/bin/python3 -c \"from code.quality_control.factor_monitor import FactorMonitor; fm = FactorMonitor(); fm.evaluate_and_update_weights()\" >> logs/factor_review.log 2>&1",
+      "enabled": true,
+      "priority": "medium",
+      "resource_profile": "medium",
+      "dependencies": ["weekly_backtest"],
+      "timeout_minutes": 60,
+      "on_failure": "log",
+      "max_retries": 0
+    },
+    {
+      "name": "weekly_innovation_lab",
+      "description": "周度创新实验室（周六凌晨 2:00）- 因子和策略挖掘",
+      "schedule": "0 2 * * 6",
+      "command": "cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor && /opt/homebrew/bin/python3 scripts/run_innovation_lab.py >> logs/innovation_lab.log 2>&1",
+      "enabled": true,
+      "priority": "medium",
+      "resource_profile": "heavy",
+      "dependencies": [],
+      "timeout_minutes": 180,
+      "on_failure": "log",
+      "max_retries": 0
     }
   ],
   "resource_profiles": {
@@ -114,12 +140,13 @@
       "description": "高负载，长时间计算"
     }
   },
-  "version": "2.0.0",
-  "last_updated": "2026-03-02T08:30:00Z",
+  "version": "2.1.0",
+  "last_updated": "2026-03-05T04:35:00Z",
   "notes": [
-    "新增8:00盘前推送任务",
-    "修复数据更新脚本，使用data_pipeline_v3",
-    "所有任务路径使用绝对路径以确保 cron 可靠执行",
-    "日志统一输出到 logs/ 目录"
+    "✅ 修复：移除引用不存在脚本的morning_push任务",
+    "✅ 优化：合并8:00重复任务，只保留morning_master_push",
+    "✅ 新增：weekly_factor_review任务（周日3:00）用于因子有效性评估",
+    "✅ 说明：daily_master.py已包含完整流程（数据+因子+选股+持仓+报告+推送）",
+    "⚠️ 待办：需要重新安装cron任务以应用更新"
   ]
 }

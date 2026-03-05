@@ -18,8 +18,16 @@
    - [6.8 评估指标体系](#68-评估指标体系)
 7. [实盘工程](#7-实盘工程)
 8. [运维指南](#8-运维指南)
-9. [简易使用流程](#9-简易使用流程)
-10. [待办事项与改进路线图](#10-待办事项与改进路线图)
+9. [自动研究功能](#9-自动研究功能)
+    - [9.1 创新实验室介绍](#91-创新实验室介绍)
+    - [9.2 自动研究使用方法](#92-自动研究使用方法)
+    - [9.3 因子验证流程](#93-因子验证流程)
+    - [9.4 创新数据库](#94-创新数据库)
+10. [推送内容设计](#10-推送内容设计)
+    - [10.1 标准推送内容](#101-标准推送内容)
+    - [10.2 新推送内容模板](#102-新推送内容模板)
+    - [10.3 回测结果展示](#103-回测结果展示)
+11. [待办事项与改进路线图](#11-待办事项与改进路线图)
 
 ---
 
@@ -51,6 +59,23 @@
 
 ### 1.2 快速启动指南
 
+#### 1.2.0 统一主入口（推荐）
+
+```bash
+# 进入项目目录
+cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor
+
+# 运行统一主入口（推荐方式）
+python3 a_stock_manager.py
+```
+
+主入口会显示交互式菜单，包含以下功能：
+1. 交易日相关
+2. 推送功能（含完整主控流程）
+3. 数据与监控
+4. 回测与模拟
+5. 系统管理
+
 #### 1.2.1 环境搭建
 ```bash
 # 克隆项目
@@ -62,6 +87,24 @@ pip install -r requirements.txt
 
 # 配置飞书webhook
 echo '{"webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_url"}' > config/feishu_config.json
+```
+
+##### 配置文件
+1. **飞书推送配置** (`config/feishu_config.json`):
+```json
+{
+  "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_url"
+}
+```
+
+2. **风控配置** (`config/risk_limits.json`):
+```json
+{
+  "stop_loss_threshold": -0.10,
+  "take_profit_threshold": 0.20,
+  "max_portfolio_drawdown": -0.15,
+  "max_single_stock_weight": 0.12
+}
 ```
 
 #### 1.2.2 数据准备
@@ -87,6 +130,9 @@ python3 scripts/run_backtest.py
 # 安装定时任务
 chmod +x scripts/install_cron_tasks.sh
 ./scripts/install_cron_tasks.sh
+
+# 运行系统健康检查
+python3 scripts/health_check.py
 ```
 
 #### 1.2.4 日常操作
@@ -95,6 +141,35 @@ chmod +x scripts/install_cron_tasks.sh
 - **盘后**：查看日报推送，总结当日表现
 - **周日**：查看回测报告，评估策略表现
 - **月末**：进行月度绩效分析，调整资金分配
+
+#### 1.2.5 查看回测结果
+回测报告会保存在 `reports/backtest/` 目录下，包含：
+- 策略绩效指标
+- 风险分析
+- 交易统计
+
+#### 1.2.6 监控日志
+日志文件位于 `logs/` 目录：
+- `unified_push.log` - 推送系统日志
+- `backtest.log` - 回测系统日志
+- `health_check.log` - 健康检查日志
+
+#### 1.2.7 常见问题
+
+##### 推送失败
+- 检查网络连接
+- 验证飞书webhook配置
+- 查看 `logs/unified_push.log` 日志
+
+##### 数据获取失败
+- 检查数据源配置
+- 尝试使用备用数据源
+- 运行 `scripts/fix_data_quality_v2.py`
+
+##### 回测结果异常
+- 检查数据质量
+- 验证策略参数
+- 查看 `logs/backtest.log` 日志
 
 ### 1.3 系统特点
 
@@ -1799,6 +1874,475 @@ def risk_parity_portfolio(strategy_returns):
 
     # 目标：最小化风险贡献差异
     risk_contributions = cp.diag(cov_matrix @ w) * w
+
+---
+
+## 12. 质量控制与监控系统
+
+### 12.1 自动化质量控制模块
+
+**功能说明**：确保每日推送的质量和可靠性，包括数据质量检查、因子有效性验证、流程完整性验证和结果一致性检查。
+
+**核心功能**：
+- **数据质量检查**：验证股票数量、缺失数据比例、流动性等指标
+- **因子有效性验证**：计算IC/IR值，检查因子相关性
+- **投资组合验证**：检查行业暴露、单股权重、多样性等
+- **流程完整性检查**：确保所有必要步骤按正确顺序执行
+
+**使用方法**：
+```python
+from code.quality_control.automated_quality_control import AutomatedQualityControl
+
+# 初始化质量控制模块
+qc = AutomatedQualityControl()
+
+# 运行质量检查
+result = qc.run_quality_check(
+    stock_data=stock_data,        # 股票数据
+    factor_data=factor_data,      # 因子数据
+    portfolio_data=selection,     # 投资组合数据
+    process_steps=process_steps   # 流程步骤
+)
+
+# 获取质量检查摘要
+summary = qc.get_quality_summary()
+print(summary)
+```
+
+### 12.2 因子监控系统
+
+**功能说明**：监控因子表现，避免因子误用，包括滚动窗口因子评估、因子表现趋势分析、因子相关性监控和因子有效性预警。
+
+**核心功能**：
+- **滚动窗口评估**：使用20个交易日的滚动窗口评估因子表现
+- **因子趋势分析**：分析因子IC、IR和收益率的变化趋势
+- **因子相关性监控**：检测因子之间的相关性，避免冗余
+- **因子有效性预警**：当因子表现恶化时发出警报
+- **因子权重推荐**：基于最近表现自动推荐因子权重
+
+**使用方法**：
+```python
+from code.quality_control.factor_monitor import FactorMonitor
+
+# 初始化因子监控模块
+fm = FactorMonitor()
+
+# 评估因子表现
+result = fm.evaluate_factors(factor_data)
+
+# 分析因子趋势
+trend = fm.analyze_factor_trends('value_factor', window=10)
+
+# 获取因子表现摘要
+summary = fm.get_factor_summary()
+print(summary)
+
+# 获取因子权重推荐
+recommendation = fm.recommend_factor_weights()
+```
+
+### 12.3 增强监控系统
+
+**功能说明**：实时监控系统运行状态、市场状态、因子表现和投资组合风险。
+
+**核心功能**：
+- **系统健康监控**：CPU、内存、磁盘使用率监控
+- **市场状态监控**：主要指数实时状态监控
+- **因子表现监控**：因子IC/IR值实时监控
+- **投资组合风险监控**：组合波动率、VaR、最大回撤等指标监控
+- **日志分析和预警**：系统运行日志分析和异常预警
+
+**使用方法**：
+```python
+from scripts.enhanced_monitor import EnhancedMonitor
+
+# 初始化增强监控系统
+monitor = EnhancedMonitor()
+
+# 开始监控
+monitor.start_monitoring()
+
+# 获取健康状态摘要
+summary = monitor.get_health_summary()
+print(summary)
+
+# 检查系统是否就绪
+is_ready = monitor.check_system_ready()
+print(f"系统就绪状态: {is_ready}")
+
+# 停止监控
+# monitor.stop_monitoring()
+```
+
+### 12.4 结构化执行流程验证
+
+**功能说明**：确保每日推送流程的完整性和正确性，避免遗漏步骤或错误执行。
+
+**核心步骤**：
+1. **数据加载**：加载股票数据和市场数据
+2. **因子计算**：计算各种因子值
+3. **股票选择**：基于因子得分选择股票
+4. **风险分析**：评估投资组合风险
+5. **交易清单生成**：生成可执行的交易清单
+6. **报告生成**：生成完整的推送报告
+
+**流程验证**：
+- 确保所有步骤按正确顺序执行
+- 验证每个步骤的执行状态
+- 检测并预警流程异常
+
+### 12.5 集成后的主流程
+
+**执行流程**：
+1. **初始化系统**：加载配置，初始化各个模块
+2. **数据准备**：加载股票数据，检查数据质量
+3. **因子评估**：评估因子表现，监控因子状态
+4. **股票选择**：基于因子得分选择股票
+5. **风险分析**：评估投资组合风险
+6. **交易生成**：生成交易清单和执行规则
+7. **质量检查**：执行质量控制检查
+8. **报告生成**：生成完整的推送报告
+9. **系统监控**：监控系统健康状态
+10. **推送发送**：发送飞书推送
+
+**运行命令**：
+```bash
+# 盘前推送
+python3 scripts/unified_daily_push.py --type morning
+
+# 日报推送
+python3 scripts/unified_daily_push.py --type evening
+```
+
+**监控命令**：
+```bash
+# 运行增强监控系统
+python3 scripts/enhanced_monitor.py
+
+# 运行系统健康检查
+python3 scripts/health_check.py
+```
+
+## 13. 全面升级：每日主控流程与增强系统
+
+### 13.1 升级概述
+
+本系统在2026年3月进行了全面升级，解决了以下核心问题：
+
+1. **自动化机制完全没有实际运行** - 实现了完整的主控脚本串联所有环节
+2. **因子管理是静态的、硬编码的** - 实现了动态IC/IR计算和权重更新
+3. **因子没有差异化适配** - 实现了按行业/市值的差异化因子体系
+4. **策略开发与验证是空壳** - 实现了推荐股票的回测身份证
+5. **推荐持仓没有经过可靠验证** - 实现了模拟持仓跟踪系统
+
+### 13.2 核心主控脚本
+
+**文件**：`scripts/daily_master.py`
+
+**功能**：
+- 数据加载与预处理
+- 因子有效性评估（IC/IR计算）
+- 动态权重更新
+- 差异化选股
+- 股票回实验证
+- 模拟持仓管理
+- 风险信号检测
+- 报告生成
+
+**使用方法**：
+```bash
+cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor
+python3 scripts/daily_master.py
+```
+
+### 13.3 因子动态评估系统
+
+**模块**：`EnhancedFactorEvaluator`
+
+**功能说明**：
+- 计算因子IC值（Spearman相关系数）
+- 计算因子IR值（信息比率）
+- 保存评估历史（52周）
+- 基于IC自动更新因子权重
+- 判定因子有效性
+
+**输出文件**：
+- `data/factor_evaluation_history.json` - 因子评估历史
+- `data/factor_dynamic_weights.json` - 动态因子权重
+
+**IC评价标准**：
+- IC > 0.05：优秀
+- IC > 0.03：良好
+- IC > 0.02：可用
+- IC < 0.02：不可用
+
+**IR评价标准**：
+- IR > 0.7：优秀
+- IR > 0.5：良好
+- IR > 0.3：可用
+- IR < 0.3：不稳定
+
+### 13.4 行业/市值差异化因子体系
+
+**模块**：`StockClassifier`, `DifferentiatedFactorWeights`
+
+**行业分组**：
+- **周期股**：有色、煤炭、钢铁等
+- **成长股**：电子、计算机、医药等
+- **消费股**：食品饮料、家电等
+- **金融股**：银行、非银
+- **公用事业**
+
+**差异化权重配置**：
+```python
+周期股:   动量35% | 估值30% | 质量15% | 流动性20%
+成长股:   动量20% | 估值15% | 质量40% | 流动性25%
+消费股:   动量25% | 估值25% | 质量30% | 流动性20%
+金融股:   动量20% | 估值40% | 质量25% | 流动性15%
+```
+
+### 13.5 推荐股票回测身份证
+
+**模块**：`StockBacktestValidator`
+
+**每只股票的回测指标**：
+- 总收益率（近60日）
+- 年化波动率
+- 夏普比率
+- 最大回撤
+- 胜率
+- 盈亏比
+
+**报告展示示例**：
+```
+紫金矿业(sh601899) - α得分: 5.08
+   📈 回测: 收益18.1% | 夏普1.07 | 回撤-15.2% | 胜率47%
+```
+
+### 13.6 模拟持仓跟踪系统
+
+**模块**：`PortfolioTracker`
+
+**功能**：
+- 初始资金：100万元
+- 自动建仓（首次运行）
+- 实时价格更新
+- 盈亏计算
+- 止盈止损检测（止盈20%，止损-10%）
+- 交易历史记录
+
+**状态文件**：`data/portfolio_state.json`
+
+**持仓示例**：
+```json
+{
+  "stock_code": "sh601899",
+  "stock_name": "紫金矿业",
+  "quantity": 2900,
+  "avg_price": 40.4,
+  "profit_loss_pct": 0.0,
+  "entry_date": "2026-03-05"
+}
+```
+
+### 13.7 增强型报告生成器
+
+**模块**：`EnhancedReportGenerator`
+
+**报告内容**：
+1. 因子有效性评估（IC/IR）
+2. 动态因子权重
+3. 今日推荐（附回测身份证）
+4. 当前持仓与盈亏
+5. 风险信号（止盈止损）
+
+### 13.8 自动化任务配置
+
+**文件**：`config/cron_config_v2.json`
+
+**新增任务**：
+```json
+{
+  "name": "morning_master_push",
+  "description": "早晨主控流程（8:00）",
+  "schedule": "0 8 * * 1-5",
+  "command": "cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor && /opt/homebrew/bin/python3 scripts/daily_master.py >> logs/morning_master.log 2>&1"
+}
+```
+
+### 13.9 系统状态文件说明
+
+| 文件 | 说明 |
+|------|------|
+| `data/portfolio_state.json` | 模拟持仓状态 |
+| `data/factor_dynamic_weights.json` | 动态因子权重 |
+| `data/factor_evaluation_history.json` | 因子评估历史 |
+| `data/selection_result.json` | 选股结果 |
+
+### 13.10 技术亮点
+
+✅ **闭环系统**：数据 → 因子 → 选股 → 验证 → 持仓 → 报告  
+✅ **动态适应**：因子权重根据IC值自动调整  
+✅ **差异化处理**：不同行业/市值使用不同因子权重  
+✅ **可追溯**：每只推荐股票都有回测身份证  
+✅ **风险控制**：内置止盈止损机制  
+✅ **生产就绪**：完整的日志、状态管理、错误处理
+
+## 14. 前端系统
+
+### 13.1 前端项目结构
+
+前端项目基于Vue 3 + Vite + Ant Design Vue构建，目录结构如下：
+
+```
+frontend/
+├── src/
+│   ├── components/        # 组件目录
+│   ├── views/            # 页面视图
+│   │   ├── Home.vue       # 首页
+│   │   ├── MarketView.vue  # 市场概览
+│   │   ├── StocksView.vue  # 股票推荐
+│   │   ├── PortfolioView.vue  # 持仓跟踪
+│   │   ├── PerformanceView.vue  # 绩效分析
+│   │   └── SettingsView.vue  # 设置配置
+│   ├── assets/           # 静态资源
+│   │   └── global.css   # 全局样式
+│   ├── utils/            # 工具函数
+│   ├── store/            # 状态管理
+│   ├── api/              # API请求
+│   ├── main.js           # 应用入口
+│   └── router.js         # 路由配置
+├── public/              # 公共文件
+├── index.html           # HTML模板
+├── vite.config.js       # Vite配置
+└── package.json         # 项目依赖
+```
+
+### 12.2 核心功能模块
+
+#### 12.2.1 首页
+- 系统概览：展示系统主要功能和特点
+- 市场状态：实时显示主要指数和市场情绪
+- 选股结果：展示推荐股票数量和平均得分
+- 持仓概览：显示当前持仓数量、总市值和收益
+- 策略信号与决策逻辑：详细说明选股模型和因子权重
+
+#### 12.2.2 市场概览
+- 主要指数：展示上证指数、深证成指、创业板指等核心指数
+- 市场情绪：显示涨停股票数、跌停股票数、北向资金等指标
+- 指数走势图：使用ECharts展示指数日内走势
+- 行业板块表现：展示各行业板块的涨跌幅
+
+#### 12.2.3 股票推荐
+- 选股统计：显示推荐股票数量、平均α得分、行业覆盖等统计信息
+- 选股逻辑：详细说明多因子模型的核心因子和权重
+- 推荐股票列表：展示Top 10推荐股票，包含得分、PE、PB等指标
+- 可执行交易清单：提供详细的交易建议，包括目标权重、计划金额、价格区间
+
+#### 12.2.4 持仓跟踪
+- 持仓概览：显示持仓数量、总市值、总盈亏、当日盈亏
+- 持仓明细：详细列出每只股票的持仓信息，包括成本价、现价、盈亏等
+- 风险监控：展示组合波动率、VaR、Beta等风险指标
+- 行业暴露度：显示各行业的持仓占比
+- 风险预警：提示潜在的风险信号
+- 调仓建议：基于当前持仓和市场情况给出调仓建议
+
+#### 12.2.5 绩效分析
+- 绩效概览：展示年化收益、夏普比率、最大回撤、胜率等核心指标
+- 收益曲线：使用ECharts展示投资组合与基准指数的对比
+- 绩效归因：分析收益来源，包括选股贡献、行业配置、时机选择
+- 风险指标：展示波动率、VaR、Beta、最大回撤等风险指标
+- 历史表现：展示不同时间周期的收益率、基准收益、超额收益等
+
+#### 12.2.6 设置配置
+- 基本设置：数据更新频率、推送设置、回测周期等
+- 策略配置：选股数量、因子权重、筛选阈值、行业中性化等
+- 风险控制：单股止损线、单股止盈线、组合最大回撤、单股最大仓位等
+- 数据源：选择数据源、配置API密钥、数据存储路径等
+
+### 12.3 技术特点
+
+- **现代前端技术栈**：Vue 3 + Vite + Pinia + ECharts + Ant Design Vue
+- **模块化设计**：清晰的组件结构和代码组织
+- **数据可视化**：使用ECharts实现各种图表展示
+- **响应式布局**：适配桌面和移动设备
+- **用户友好**：直观的界面设计和流畅的交互体验
+- **实时数据**：支持实时市场数据更新
+- **风险监控**：实时风险评估和预警
+
+### 12.4 如何运行前端项目
+
+#### 12.4.1 安装依赖
+```bash
+cd frontend
+npm install
+```
+
+#### 12.4.2 启动开发服务器
+```bash
+npm run dev
+```
+
+开发服务器将在 http://localhost:3000 启动，可直接访问前端界面。
+
+#### 12.4.3 构建生产版本
+```bash
+npm run build
+```
+
+构建后的文件将生成在 `dist` 目录中，可部署到生产服务器。
+
+### 12.5 前端与后端集成
+
+前端通过API与后端系统集成，主要接口包括：
+
+- **市场数据接口**：获取实时市场数据和指数信息
+- **选股结果接口**：获取推荐股票列表和详细信息
+- **持仓数据接口**：获取当前持仓和绩效数据
+- **风险监控接口**：获取风险指标和预警信息
+- **设置配置接口**：保存和加载系统配置
+
+### 12.6 用户使用指南
+
+#### 12.6.1 日常操作流程
+1. **盘前**：打开前端系统，查看市场概览和股票推荐
+2. **盘中**：监控市场状态和持仓表现
+3. **盘后**：查看绩效分析和调仓建议
+4. **定期**：在设置页面调整策略参数和风险控制指标
+
+#### 12.6.2 功能使用说明
+- **市场概览**：实时监控市场走势，了解行业板块表现
+- **股票推荐**：查看系统推荐的股票，参考交易建议
+- **持仓跟踪**：监控当前持仓表现，关注风险预警
+- **绩效分析**：分析投资绩效，了解收益来源
+- **设置配置**：根据市场情况调整策略参数
+
+### 12.7 常见问题与解决方案
+
+#### 12.7.1 前端页面加载缓慢
+- 检查网络连接
+- 优化浏览器缓存
+- 减少同时打开的页面数量
+
+#### 12.7.2 数据显示异常
+- 检查后端API连接
+- 刷新页面重新加载数据
+- 检查数据质量
+
+#### 12.7.3 功能无法使用
+- 检查浏览器兼容性（推荐使用Chrome、Firefox、Edge）
+- 清除浏览器缓存
+- 检查系统权限设置
+
+### 12.8 未来优化方向
+
+- **实时数据推送**：使用WebSocket实现实时数据更新
+- **个性化配置**：支持用户自定义仪表盘和指标
+- **移动端适配**：开发移动端APP或PWA
+- **AI辅助决策**：集成AI模型提供投资建议
+- **多语言支持**：支持中英文切换
+
+---
     avg_risk_contribution = cp.sum(risk_contributions) / n
     risk_diff = cp.sum_squares(risk_contributions - avg_risk_contribution)
 
@@ -3706,184 +4250,28 @@ def handle_liquidity_crisis(stock_code):
 
 ---
 
-## 8. 简易使用流程
+## 11. 待办事项与改进路线图
 
-### 8.1 环境搭建
+### 11.1 已完成的改进
 
-#### 8.1.1 安装依赖
-```bash
-# 克隆项目
-git clone https://gitee.com/variyaone/a-stock-advisor.git
-cd a-stock-advisor
-
-# 安装依赖
-pip install -r requirements.txt
-```
-
-#### 8.1.2 配置文件
-1. **飞书推送配置** (`config/feishu_config.json`):
-```json
-{
-  "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_url"
-}
-```
-
-2. **风控配置** (`config/risk_limits.json`):
-```json
-{
-  "stop_loss_threshold": -0.10,
-  "take_profit_threshold": 0.20,
-  "max_portfolio_drawdown": -0.15,
-  "max_single_stock_weight": 0.12
-}
-```
-
-### 8.2 数据准备
-
-#### 8.2.1 自动数据更新
-```bash
-# 运行数据更新脚本
-python3 scripts/data_update_v2.py
-```
-
-#### 8.2.2 数据质量检查
-```bash
-# 运行数据质量修复脚本
-python3 scripts/fix_data_quality_v2.py
-```
-
-### 8.3 运行推送系统
-
-#### 8.3.1 盘前推送（工作日8:00）
-```bash
-# 手动运行盘前推送
-python3 scripts/unified_daily_push.py --type morning
-```
-
-#### 8.3.2 日报推送（工作日18:30）
-```bash
-# 手动运行日报推送
-python3 scripts/unified_daily_push.py --type evening
-```
-
-#### 8.3.3 定时任务设置
-```bash
-# 安装定时任务
-chmod +x scripts/install_cron_tasks.sh
-./scripts/install_cron_tasks.sh
-```
-
-### 8.4 查看回测结果
-
-#### 8.4.1 运行回测
-```bash
-# 运行回测
-python3 scripts/run_backtest.py
-```
-
-#### 8.4.2 查看回测报告
-回测报告会保存在 `reports/backtest/` 目录下，包含：
-- 策略绩效指标
-- 风险分析
-- 交易统计
-
-### 8.5 系统健康检查
-
-#### 8.5.1 运行健康检查
-```bash
-# 运行系统健康检查
-python3 scripts/health_check.py
-```
-
-#### 8.5.2 监控日志
-日志文件位于 `logs/` 目录：
-- `unified_push.log` - 推送系统日志
-- `backtest.log` - 回测系统日志
-- `health_check.log` - 健康检查日志
-
-### 8.6 日常维护
-
-#### 8.6.1 每日操作
-1. **盘前**：查看推送内容，了解当日交易建议
-2. **盘中**：执行交易，监控市场状态
-3. **盘后**：查看日报推送，总结当日表现
-
-#### 8.6.2 每周操作
-1. **周日**：查看回测报告，评估策略表现
-2. **周初**：根据回测结果调整策略参数
-
-#### 8.6.3 每月操作
-1. **月末**：进行月度绩效分析
-2. **月初**：调整资金分配和风险预算
-
-### 8.7 常见问题
-
-#### 8.7.1 推送失败
-- 检查网络连接
-- 验证飞书webhook配置
-- 查看 `logs/unified_push.log` 日志
-
-#### 8.7.2 数据获取失败
-- 检查数据源配置
-- 尝试使用备用数据源
-- 运行 `scripts/fix_data_quality_v2.py`
-
-#### 8.7.3 回测结果异常
-- 检查数据质量
-- 验证策略参数
-- 查看 `logs/backtest.log` 日志
-
-### 8.8 快速启动示例
-
-```bash
-# 1. 克隆项目
-git clone https://gitee.com/variyaone/a-stock-advisor.git
-cd a-stock-advisor
-
-# 2. 安装依赖
-pip install -r requirements.txt
-
-# 3. 配置飞书webhook
-echo '{"webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/your_webhook_url"}' > config/feishu_config.json
-
-# 4. 更新数据
-python3 scripts/data_update_v2.py
-
-# 5. 运行盘前推送
-python3 scripts/unified_daily_push.py --type morning
-
-# 6. 运行回测
-python3 scripts/run_backtest.py
-
-# 7. 安装定时任务
-chmod +x scripts/install_cron_tasks.sh
-./scripts/install_cron_tasks.sh
-```
-
----
-
-## 9. 待办事项与改进路线图
-
-### 9.1 已完成的改进
-
-#### 9.1.1 实盘交易框架
+#### 11.1.1 实盘交易框架
 - ✅ 实现TradingAPI基类和SimulatedTradingAPI
 - ✅ 开发RealTimeOrder和RealTimeTrader类
 - ✅ 为实盘API接入预留接口
 
-#### 8.1.2 交易员辅助功能
+#### 11.1.2 交易员辅助功能
 - ✅ 增强模拟盘功能
 - ✅ 开发专业交易报表
 - ✅ 实现线上线下同步管理
 
-#### 8.1.3 策略开发与迭代
+#### 11.1.3 策略开发与迭代
 - ✅ 建立因子自动发现机制
 - ✅ 实现策略组合构建
 - ✅ 开发持续策略评估系统
 
-### 8.2 待解决问题（P0级）
+### 11.2 待解决问题（P0级）
 
-#### 8.2.1 实盘API接入
+#### 11.2.1 实盘API接入
 **问题**：需要接入券商实盘API，实现真实交易功能。
 
 **解决方案**：
@@ -3891,7 +4279,7 @@ chmod +x scripts/install_cron_tasks.sh
 - 实现订单执行和管理
 - 建立实盘风控系统
 
-#### 8.2.2 交易员反馈系统
+#### 11.2.2 交易员反馈系统
 **问题**：需要开发交易员反馈实际持仓的界面。
 
 **解决方案**：
@@ -3899,7 +4287,7 @@ chmod +x scripts/install_cron_tasks.sh
 - 实现持仓对比功能
 - 添加交易记录导入功能
 
-#### 8.2.3 策略自动化优化
+#### 11.2.3 策略自动化优化
 **问题**：需要实现策略参数自动调优功能。
 
 **解决方案**：
@@ -4660,49 +5048,409 @@ from scipy.optimize import minimize
 
 ---
 
-## 10. 数据工程优化
+## 9. 自动研究功能
 
-### 10.1 数据质量提升
+### 9.1 创新实验室介绍
+
+创新实验室是一个自动化因子研究和验证平台，旨在帮助量化研究员快速探索和验证新因子，提高因子研发效率。
+
+**核心功能**：
+- 因子原型快速验证
+- 因子有效性评估（IC/IR/单调性）
+- 因子相关性分析
+- 策略原型验证
+- 创新因子库与策略库管理
+
+**目标**：
+1. 每周探索至少2个新因子
+2. 每周设计至少1个新策略
+3. 有效因子：IC绝对值>0.02，IR>0.5
+4. 有效策略：年化收益>10%，夏普>1.0
+
+### 9.2 自动研究使用方法
+
+#### 9.2.1 环境准备
+
+1. **数据准备**：
+   ```bash
+   # 确保数据已更新
+   python3 scripts/data_update_v2.py
+   
+   # 数据质量检查
+   python3 scripts/fix_data_quality_v2.py
+   ```
+
+2. **运行创新实验室**：
+   ```bash
+   # 运行创新实验室示例
+   python3 code/strategy/innovation_lab.py
+   ```
+
+#### 9.2.2 探索新因子
+
+```python
+from code.strategy.innovation_lab import InnovationLab
+
+# 创建创新实验室实例
+lab = InnovationLab()
+
+# 加载数据
+lab.validator.load_data(start_date='20200101', end_date='20241231')
+
+# 定义因子函数
+def custom_factor(data):
+    """自定义因子计算函数"""
+    factors = []
+    for stock_code in data['stock_code'].unique():
+        stock_data = data[data['stock_code'] == stock_code].sort_values('date').copy()
+        # 计算因子值（示例：5日动量）
+        stock_data['custom_factor'] = stock_data['close'].pct_change(5)
+        # 创建多层索引
+        df = stock_data[['date', 'custom_factor']].copy()
+        df.index = pd.MultiIndex.from_arrays(
+            [df['date'], [stock_code] * len(df)],
+            names=['date', 'stock_code']
+        )
+        factors.append(df['custom_factor'])
+    return pd.concat(factors).dropna()
+
+# 探索新因子
+result = lab.explore_new_factor(
+    factor_func=custom_factor,
+    factor_name='custom_momentum_5d',
+    description='5日价格动量因子',
+    category='技术面因子',
+    notes='自定义动量因子示例',
+    periods=5
+)
+
+# 生成创新周报
+lab.generate_innovation_report()
+```
+
+#### 9.2.3 因子验证参数
+
+| 参数 | 说明 | 默认值 |
+|-----|------|------|
+| `factor_func` | 因子计算函数 | 必填 |
+| `factor_name` | 因子名称 | 必填 |
+| `description` | 因子描述 | "" |
+| `category` | 因子分类 | "未分类" |
+| `notes` | 备注信息 | "" |
+| `periods` | 收益率周期（日） | 5 |
+
+### 9.3 因子验证流程
+
+#### 9.3.1 验证步骤
+
+1. **数据加载**：加载历史行情数据
+2. **因子计算**：使用自定义因子函数计算因子值
+3. **未来收益率计算**：计算指定周期的未来收益率
+4. **IC指标计算**：计算信息系数相关指标
+5. **单调性分析**：分析因子分组收益单调性
+6. **验证结果**：评估因子是否有效
+7. **保存结果**：保存实验报告到创新数据库
+
+#### 9.3.2 评估标准
+
+**因子验证标准**：
+- IC绝对值 > 0.02
+- IR > 0.5
+- IC胜率 > 55%
+- 单调性 > 0.6
+- 综合得分 > 0.7
+
+**策略验证标准**：
+- 年化收益率 > 10%
+- 夏普比率 > 1.0
+- 最大回撤 < 30%
+- 卡玛比率 > 0.33
+
+### 9.4 创新数据库
+
+#### 9.4.1 存储结构
+
+- **因子库**：`reports/innovation_factor_library.json`
+- **策略库**：`reports/innovation_strategy_library.json`
+- **实验报告**：`reports/innovation_experiments/`
+
+#### 9.4.2 因子库结构
+
+```json
+{
+  "factor_name": {
+    "name": "因子名称",
+    "description": "因子描述",
+    "category": "因子分类",
+    "ic_mean": 0.03,
+    "ir": 0.6,
+    "is_valid": true,
+    "final_score": 0.85,
+    "last_test_date": "2024-01-01 12:00:00",
+    "test_count": 3,
+    "notes": "备注信息"
+  }
+}
+```
+
+#### 9.4.3 生成创新周报
+
+```bash
+# 生成创新周报
+python3 -c "from code.strategy.innovation_lab import InnovationLab; lab = InnovationLab(); lab.generate_innovation_report()"
+```
+
+周报包含以下内容：
+- 创新统计（因子和策略数量）
+- 有效创新率
+- 本周目标完成情况
+- 下周计划
+
+---
+
+## 10. 推送内容设计
+
+### 10.1 标准推送内容
+
+**盘前推送**（工作日8:00）：
+- 市场概览
+- 当日策略
+- 推荐股票
+- 风险提示
+
+**日报推送**（工作日18:30）：
+- 当日市场表现
+- 策略执行情况
+- 持仓分析
+- 明日展望
+
+### 10.2 新推送内容模板
+
+**增强版推送内容**（包含回测结果和分析）：
+
+```markdown
+# 📊 A股量化系统推送
+
+## 📈 市场概览
+- **市场状态**：{market_state}
+- **大盘走势**：{index_trend}
+- **行业表现**：{industry_performance}
+
+## 🎯 今日策略
+- **策略名称**：{strategy_name}
+- **策略逻辑**：{strategy_logic}
+- **适用环境**：{strategy_environment}
+
+## 🏆 推荐股票
+
+### 精选组合
+| 股票代码 | 股票名称 | 推荐理由 | 目标价 | 止损价 |
+|---------|---------|---------|---------|---------|
+| {stock1_code} | {stock1_name} | {stock1_reason} | {stock1_target} | {stock1_stop} |
+| {stock2_code} | {stock2_name} | {stock2_reason} | {stock2_target} | {stock2_stop} |
+| {stock3_code} | {stock3_name} | {stock3_reason} | {stock3_target} | {stock3_stop} |
+
+## 📋 因子表现
+
+### 因子排名
+| 因子名称 | IC均值 | IR | 单调性 | 有效状态 |
+|---------|---------|---------|---------|---------|
+| {factor1_name} | {factor1_ic} | {factor1_ir} | {factor1_mono} | {factor1_valid} |
+| {factor2_name} | {factor2_ic} | {factor2_ir} | {factor2_mono} | {factor2_valid} |
+| {factor3_name} | {factor3_ic} | {factor3_ir} | {factor3_mono} | {factor3_valid} |
+
+### 因子贡献度
+| 因子名称 | 权重 | 贡献度 |
+|---------|---------|---------|
+| {factor1_name} | {factor1_weight} | {factor1_contribution} |
+| {factor2_name} | {factor2_weight} | {factor2_contribution} |
+| {factor3_name} | {factor3_weight} | {factor3_contribution} |
+
+## 📊 回测结果
+
+### 策略表现
+| 指标 | 数值 | 评价 |
+|---------|---------|---------|
+| 年化收益率 | {annual_return} | {return_evaluation} |
+| 夏普比率 | {sharpe_ratio} | {sharpe_evaluation} |
+| 最大回撤 | {max_drawdown} | {drawdown_evaluation} |
+| 卡玛比率 | {calmar_ratio} | {calmar_evaluation} |
+| 胜率 | {win_rate} | {win_evaluation} |
+
+### 月度表现
+| 月份 | 收益率 | 最大回撤 | 夏普比率 |
+|---------|---------|---------|---------|
+| {month1} | {month1_return} | {month1_drawdown} | {month1_sharpe} |
+| {month2} | {month2_return} | {month2_drawdown} | {month2_sharpe} |
+| {month3} | {month3_return} | {month3_drawdown} | {month3_sharpe} |
+
+## 🎯 指标分析
+
+### 技术指标
+| 指标名称 | 当前值 | 状态 | 信号 |
+|---------|---------|---------|---------|
+| MACD | {macd_value} | {macd_status} | {macd_signal} |
+| RSI | {rsi_value} | {rsi_status} | {rsi_signal} |
+| KDJ | {kdj_value} | {kdj_status} | {kdj_signal} |
+| 布林带 | {bollinger_value} | {bollinger_status} | {bollinger_signal} |
+
+### 基本面指标
+| 指标名称 | 当前值 | 行业平均 | 评价 |
+|---------|---------|---------|---------|
+| PE | {pe_value} | {pe_industry} | {pe_evaluation} |
+| PB | {pb_value} | {pb_industry} | {pb_evaluation} |
+| ROE | {roe_value} | {roe_industry} | {roe_evaluation} |
+| 营收增长 | {revenue_growth} | {revenue_industry} | {revenue_evaluation} |
+
+## 📈 策略决策依据
+
+### 选股逻辑
+- **因子选择**：{selected_factors}
+- **权重分配**：{weight_allocation}
+- **风险控制**：{risk_control}
+
+### 推送决策
+- **市场环境**：{market_environment}
+- **策略适配**：{strategy_fit}
+- **风险评估**：{risk_assessment}
+- **资金分配**：{capital_allocation}
+
+## ⚠️ 风险提示
+- **市场风险**：{market_risk}
+- **策略风险**：{strategy_risk}
+- **个股风险**：{stock_risk}
+- **操作建议**：{operation_suggestion}
+
+## 📅 后续计划
+- **明日关注**：{tomorrow_focus}
+- **本周策略**：{weekly_strategy}
+- **月度计划**：{monthly_plan}
+
+---
+
+**生成时间**：{timestamp}
+**系统版本**：{version}
+```
+
+### 10.3 回测结果展示
+
+#### 10.3.1 回测报告模板
+
+**策略回测报告**：
+
+1. **策略信息**
+   - 策略名称：{strategy_name}
+   - 回测期间：{start_date} 至 {end_date}
+   - 初始资金：{initial_capital}
+   - 交易成本：{transaction_cost}
+
+2. **绩效指标**
+   - 年化收益率：{annual_return}%
+   - 夏普比率：{sharpe_ratio}
+   - 最大回撤：{max_drawdown}%
+   - 卡玛比率：{calmar_ratio}
+   - 胜率：{win_rate}%
+   - 平均持仓周期：{average_holding_period}天
+
+3. **月度表现**
+   | 月份 | 收益率 | 最大回撤 | 夏普比率 |
+   |------|--------|----------|----------|
+   | 2024-01 | +3.2% | -2.1% | 1.5 |
+   | 2024-02 | +1.8% | -1.5% | 1.2 |
+   | 2024-03 | -0.5% | -3.2% | -0.2 |
+
+4. **因子表现**
+   | 因子名称 | IC均值 | IR | 单调性 | 贡献度 |
+   |---------|--------|----|--------|--------|
+   | 动量因子 | 0.042 | 0.75 | 0.85 | 35% |
+   | 估值因子 | 0.038 | 0.68 | 0.80 | 30% |
+   | 质量因子 | 0.031 | 0.62 | 0.75 | 25% |
+   | 情绪因子 | 0.025 | 0.55 | 0.70 | 10% |
+
+5. **风险分析**
+   - 系统性风险：{systematic_risk}
+   - 非系统性风险：{idiosyncratic_risk}
+   - 行业暴露：{industry_exposure}
+   - 风格暴露：{style_exposure}
+
+6. **归因分析**
+   - 选股贡献：{stock_selection_contribution}
+   - 择时贡献：{timing_contribution}
+   - 行业配置：{industry_allocation}
+   - 因子暴露：{factor_exposure}
+
+7. **策略优化建议**
+   - {optimization_suggestion1}
+   - {optimization_suggestion2}
+   - {optimization_suggestion3}
+
+#### 10.3.2 推送执行流程
+
+1. **数据准备**：
+   - 更新行情数据
+   - 计算因子值
+   - 运行回测
+
+2. **策略评估**：
+   - 评估因子表现
+   - 分析策略绩效
+   - 识别市场状态
+
+3. **推送生成**：
+   - 生成推送内容
+   - 发送到飞书/邮件
+   - 保存推送历史
+
+4. **效果跟踪**：
+   - 监控推送效果
+   - 收集反馈
+   - 持续优化
+
+---
+
+## 12. 数据工程优化
+
+### 12.1 数据质量提升
 - **多源数据验证**：Tushare、AKShare、Baostock交叉验证
 - **数据质量监控**：自动化数据质量检查脚本
 - **实时监控数据异常**
 
-### 10.2 数据处理流程优化
+### 12.2 数据处理流程优化
 - **完善幸存者偏差处理**：确保回测数据包含已退市股票
 - **优化未来函数检测**：建立严格的未来数据使用检查机制
 - **增强流动性过滤**：根据不同资金规模动态调整流动性阈值
 
 ---
 
-## 11. 因子体系改进
+## 13. 因子体系改进
 
-### 11.1 因子有效性评估
+### 13.1 因子有效性评估
 - **系统性因子筛选**：对80+因子进行全面评估，淘汰IC<3%或IR<0.5的因子
 - **因子相关性分析**：识别高度相关的因子，避免因子冗余
 - **行业中性化**：对因子进行行业中性化处理，减少行业暴露
 
-### 11.2 因子挖掘增强
+### 13.2 因子挖掘增强
 - **引入深度学习因子**：使用LSTM、Transformer等模型挖掘非线性因子
 - **开发高阶因子**：基于基础因子构建复合因子
 - **实现动态因子权重**：根据市场环境自动调整因子权重
 
 ---
 
-## 12. 策略体系优化
+## 14. 策略体系优化
 
-### 12.1 策略多样性
+### 14.1 策略多样性
 - **开发日内交易策略**：利用日内数据捕捉短期机会
 - **增加对冲策略**：开发市场中性策略，降低系统性风险
 - **拓展跨市场策略**：考虑港股、美股等市场的联动机会
 
-### 12.2 策略组合优化
+### 14.2 策略组合优化
 - **实现风险平价组合**：确保各策略风险贡献相等
 - **动态策略配置**：根据市场环境自动调整策略权重
 - **策略绩效归因**：建立详细的策略归因分析系统
 
 ---
 
-## 13. 回测系统完善
+## 15. 回测系统完善
 
 ### 13.1 成本模型优化
 - **精确计算交易成本**：包括印花税、佣金、过户费、滑点
@@ -4713,6 +5461,25 @@ from scipy.optimize import minimize
 - **实现并行回测**：利用多核计算加速回测过程
 - **滚动窗口回测**：使用多个时间段验证策略稳定性
 - **情景分析**：测试策略在不同市场环境下的表现
+
+### 13.3 绩效对比系统
+- **因子绩效对比**：比较不同因子的IC、IR等指标
+- **策略绩效对比**：比较不同策略的收益率、夏普比率等指标
+- **指标对比分析**：分析不同评估指标的表现
+- **生成对比报告**：输出详细的对比结果和分析
+
+**使用方法**：
+```bash
+# 通过主入口运行绩效对比系统
+python3 a_stock_manager.py
+# 选择 "12. 绩效对比系统（因子/策略对比）"
+```
+
+**功能特点**：
+- 支持因子、策略、指标的多维度对比
+- 提供可视化的对比结果
+- 生成详细的对比报告
+- 支持并行处理，提升对比速度
 
 ---
 

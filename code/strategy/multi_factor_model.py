@@ -453,3 +453,101 @@ class MultiFactorScoreModel:
         result['综合得分'] = top_scores
         
         return result.sort_values('综合得分', ascending=False)
+
+
+class MultiFactorModel:
+    """多因子选股模型 - 统一接口"""
+    
+    def __init__(self, factor_weights: Dict[str, float] = None):
+        """
+        初始化多因子模型
+        
+        Args:
+            factor_weights: 因子权重字典，默认使用等权重
+        """
+        self.ic_calculator = RollingICCalculator()
+        self.weight_system = DynamicFactorWeightSystem()
+        
+        self.default_weights = {
+            'value': 0.30,
+            'quality': 0.30,
+            'growth': 0.20,
+            'momentum': 0.15,
+            'volatility': 0.05
+        }
+        
+        self.factor_weights = factor_weights or self.default_weights
+    
+    def select_stocks(
+        self, 
+        factor_df: pd.DataFrame, 
+        n_stocks: int = 10,
+        method: str = 'weighted'
+    ) -> pd.DataFrame:
+        """
+        多因子选股
+        
+        Args:
+            factor_df: 因子数据 DataFrame (index: stock_code, columns: factor_names)
+            n_stocks: 选股数量
+            method: 选股方法 ('weighted', 'equal_weight', 'ic_weight')
+            
+        Returns:
+            选中的股票 DataFrame
+        """
+        if method == 'weighted':
+            scores = self.weight_system.calculate_score(factor_df)
+        elif method == 'equal_weight':
+            scores = factor_df.mean(axis=1)
+        else:
+            scores = self.weight_system.calculate_score(factor_df)
+        
+        top_scores = scores.nlargest(n_stocks)
+        result = factor_df.loc[top_scores.index].copy()
+        result['综合得分'] = top_scores
+        
+        return result.sort_values('综合得分', ascending=False)
+    
+    def get_factor_weights(self) -> Dict[str, float]:
+        """获取当前因子权重"""
+        return self.factor_weights
+    
+    def update_factor_weights(self, new_weights: Dict[str, float]):
+        """更新因子权重"""
+        self.factor_weights.update(new_weights)
+    
+    def evaluate_factor_effectiveness(
+        self,
+        factor_df: pd.DataFrame,
+        returns_df: pd.DataFrame
+    ) -> Dict[str, Dict]:
+        """
+        评估因子有效性
+        
+        Args:
+            factor_df: 因子数据
+            returns_df: 收益率数据
+            
+        Returns:
+            各因子的评估结果
+        """
+        results = {}
+        
+        for factor_name in factor_df.columns:
+            if factor_name in returns_df.columns:
+                ic_series = self.ic_calculator.calculate_rolling_ic(
+                    factor_df[factor_name],
+                    returns_df[factor_name]
+                )
+                
+                if not ic_series.empty:
+                    decay_info = self.ic_calculator.get_ic_decay(ic_series['ic'])
+                    results[factor_name] = {
+                        'ic_mean': decay_info['ic_mean'],
+                        'ic_std': decay_info['ic_std'],
+                        'ic_ir': decay_info['ic_ir'],
+                        'decay_rate': decay_info['decay_rate'],
+                        'is_valid': decay_info['ic_mean'] > 0.02 and decay_info['ic_ir'] > 0.5
+                    }
+        
+        return results

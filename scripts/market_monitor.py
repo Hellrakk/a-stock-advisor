@@ -18,7 +18,10 @@ class MarketMonitor:
 
     def __init__(self):
         """初始化"""
-        self.data_file = 'data/akshare_real_data_fixed.pkl'
+        # 优先使用真实实时数据
+        self.data_file = 'data/latest_realtime_data.pkl'
+        # 备用数据文件（仅当实时数据不存在时使用）
+        self.backup_data_file = 'data/akshare_real_data_fixed.pkl'
         self.market_report_file = 'reports/daily_market_report.json'
 
         # 阈值配置（基于设计文档）
@@ -30,13 +33,23 @@ class MarketMonitor:
 
     def load_stock_data(self) -> pd.DataFrame:
         """加载股票数据"""
+        # 首先尝试加载真实实时数据
         try:
             with open(self.data_file, 'rb') as f:
                 df = pkl.load(f)
+            print(f"✓ 加载真实实时数据成功: {len(df)}条记录")
             return df
         except Exception as e:
-            print(f"加载数据失败: {e}")
-            return pd.DataFrame()
+            print(f"加载实时数据失败: {e}")
+            # 尝试使用备用数据
+            try:
+                with open(self.backup_data_file, 'rb') as f:
+                    df = pkl.load(f)
+                print(f"⚠️ 使用备用数据: {len(df)}条记录")
+                return df
+            except Exception as e2:
+                print(f"加载备用数据失败: {e2}")
+                return pd.DataFrame()
 
     def count_limit_down_stocks(self, stock_data: pd.DataFrame) -> Dict:
         """
@@ -151,12 +164,21 @@ class MarketMonitor:
             recent_dates = stock_data['date_dt'].unique()
             recent_dates = sorted(recent_dates)[-6:]  # 最新日期+5个历史日期
 
-            # 计算5日平均成交量
-            avg_amount = stock_data[stock_data['date_dt'].isin(recent_dates[:-1])]['amount'].mean()
+            if len(recent_dates) < 6:
+                return {'status': '历史数据不足', 'level': 'warning', 'liquidity_ratio': 100}
 
-            if avg_amount == 0:
+            # 计算5日平均每日总成交量
+            avg_amounts = []
+            for date in recent_dates[:-1]:  # 排除最新日期
+                daily_df = stock_data[stock_data['date_dt'] == date]
+                if len(daily_df) > 0:
+                    daily_total = daily_df['amount'].sum()
+                    avg_amounts.append(daily_total)
+
+            if not avg_amounts or sum(avg_amounts) == 0:
                 return {'status': '无历史数据', 'level': 'warning', 'liquidity_ratio': 0}
 
+            avg_amount = sum(avg_amounts) / len(avg_amounts)
             current_amount = latest_df['amount'].sum()
             liquidity_ratio = current_amount / avg_amount
 

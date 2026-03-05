@@ -52,11 +52,11 @@ def mark_pushed_today():
 def run_push():
     """执行推送脚本"""
     try:
-        script_path = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor/scripts/a_stock_push_v5.py'
+        script_path = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor/scripts/unified_daily_push.py'
         
         logger.info("触发盘前推送...")
         result = subprocess.run(
-            ['/opt/homebrew/bin/python3', script_path],
+            ['/opt/homebrew/bin/python3', script_path, '--type', 'morning'],
             capture_output=True,
             text=True,
             timeout=60

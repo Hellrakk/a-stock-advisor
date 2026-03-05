@@ -8,11 +8,16 @@ env/
 venv/
 .venv/
 
-# 数据文件（太大不上传）
-data/*.pkl
-data/*.csv
-data/*.h5
+# 数据文件（缓存数据，不上传）
+data/
 !data/.gitkeep
+scripts/data/
+scripts/reports/
+projects/
+
+# 报告文件（运行时生成）
+reports/
+!reports/.gitkeep
 
 # 日志
 logs/
@@ -21,6 +26,10 @@ logs/
 # 配置文件（含敏感信息）
 config/feishu_config.json
 config/api_keys.json
+config/cron_config_v2.json
+config/crontab_backup_*.txt
+config/new_crontab.txt
+.env
 
 # IDE
 .vscode/
@@ -37,3 +46,14 @@ Thumbs.db
 *.bak
 temp/
 tmp/
+
+# 缓存文件
+.cache/
+*.cache
+
+# 任务池数据（运行时生成）
+.commander/
+
+# Node.js
+node_modules/
+package-lock.json

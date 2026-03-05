@@ -16,9 +16,18 @@ from abc import ABC, abstractmethod
 import warnings
 warnings.filterwarnings('ignore')
 
-# 导入回测引擎
-from backtest_engine_v2 import BacktestEngineV2, CostModel, Portfolio
-from baseline_model import BaselineModel
+try:
+    from code.backtest.backtest_engine_v2 import BacktestEngineV2, CostModel, Portfolio
+except ImportError:
+    from backtest_engine_v2 import BacktestEngineV2, CostModel, Portfolio
+
+try:
+    from code.strategy.baseline_model import BaselineModel
+except ImportError:
+    try:
+        from baseline_model import BaselineModel
+    except ImportError:
+        BaselineModel = None
 
 
 # ========== 数据模块 ==========
@@ -308,7 +317,9 @@ class BasicRiskModule(RiskModule):
     
     def __init__(self, max_single_position: float = 0.10,
                  max_industry_exposure: float = 0.30,
-                 max_position_count: int = 20):
+                 max_position_count: int = 20,
+                 stop_loss_threshold: float = -0.10,
+                 take_profit_threshold: float = 0.20):
         """
         初始化风控模块
         
@@ -316,10 +327,16 @@ class BasicRiskModule(RiskModule):
             max_single_position: 单票最大仓位
             max_industry_exposure: 单行业最大暴露
             max_position_count: 最大持仓数量
+            stop_loss_threshold: 止损阈值 (默认 -10%)
+            take_profit_threshold: 止盈阈值 (默认 20%)
         """
         self.max_single_position = max_single_position
         self.max_industry_exposure = max_industry_exposure
         self.max_position_count = max_position_count
+        self.stop_loss_threshold = stop_loss_threshold
+        self.take_profit_threshold = take_profit_threshold
+        self._stop_loss_triggered = []
+        self._take_profit_triggered = []
     
     def check(self, signals: Dict[str, float], portfolio: Portfolio,
              data: pd.DataFrame) -> Dict[str, float]:
@@ -336,26 +353,21 @@ class BasicRiskModule(RiskModule):
         """
         filtered_signals = {}
         
-        # 获取行业信息
         industry_map = {}
         if 'industry' in data.columns:
             industry_info = data[['stock_code', 'industry']].drop_duplicates()
             industry_map = dict(zip(industry_info['stock_code'], industry_info['industry']))
         
-        # 现有行业暴露
         industry_exposure = portfolio.get_industry_exposure()
         
         for stock_code, target_weight in signals.items():
-            # 检查单票仓位限制
             current_weight = portfolio.get_position_weight(stock_code)
             if current_weight + target_weight > self.max_single_position:
-                # 调整权重
                 target_weight = max(0, self.max_single_position - current_weight)
             
             if target_weight <= 0:
                 continue
             
-            # 检查行业暴露限制
             if stock_code in industry_map:
                 industry = industry_map[stock_code]
                 current_exposure = industry_exposure.get(industry, 0)
@@ -365,6 +377,49 @@ class BasicRiskModule(RiskModule):
             filtered_signals[stock_code] = target_weight
         
         return filtered_signals
+    
+    def check_stop_loss_take_profit(self, portfolio: Portfolio, 
+                                     data: pd.DataFrame) -> Dict[str, str]:
+        """
+        检查止损止盈
+        
+        Args:
+            portfolio: 投资组合
+            data: 市场数据
+            
+        Returns:
+            需要执行的止损止盈操作 {'stock_code': 'stop_loss'/'take_profit'}
+        """
+        actions = {}
+        self._stop_loss_triggered = []
+        self._take_profit_triggered = []
+        
+        for stock_code, pos in portfolio.positions.items():
+            stock_data = data[data['stock_code'] == stock_code]
+            if len(stock_data) == 0:
+                continue
+            
+            current_price = stock_data['close'].iloc[-1]
+            pnl_ratio = (current_price - pos.avg_price) / pos.avg_price
+            
+            if pnl_ratio <= self.stop_loss_threshold:
+                actions[stock_code] = 'stop_loss'
+                self._stop_loss_triggered.append({
+                    'stock_code': stock_code,
+                    'pnl_ratio': pnl_ratio,
+                    'avg_price': pos.avg_price,
+                    'current_price': current_price
+                })
+            elif pnl_ratio >= self.take_profit_threshold:
+                actions[stock_code] = 'take_profit'
+                self._take_profit_triggered.append({
+                    'stock_code': stock_code,
+                    'pnl_ratio': pnl_ratio,
+                    'avg_price': pos.avg_price,
+                    'current_price': current_price
+                })
+        
+        return actions
     
     def check_portfolio(self, portfolio: Portfolio, data: pd.DataFrame) -> List[str]:
         """
@@ -379,13 +434,11 @@ class BasicRiskModule(RiskModule):
         """
         warnings_list = []
         
-        # 检查持仓数量
         if len(portfolio.positions) > self.max_position_count:
             warnings_list.append(
                 f"持仓数量超限: {len(portfolio.positions)} > {self.max_position_count}"
             )
         
-        # 检查单票仓位
         for stock_code, pos in portfolio.positions.items():
             weight = portfolio.get_position_weight(stock_code)
             if weight > self.max_single_position:
@@ -393,12 +446,22 @@ class BasicRiskModule(RiskModule):
                     f"单票仓位超限: {stock_code} {weight:.2%} > {self.max_single_position:.2%}"
                 )
         
-        # 检查行业暴露
         industry_exposure = portfolio.get_industry_exposure()
         for industry, exposure in industry_exposure.items():
             if exposure > self.max_industry_exposure:
                 warnings_list.append(
                     f"行业暴露超限: {industry} {exposure:.2%} > {self.max_industry_exposure:.2%}"
+                )
+        
+        stop_loss_actions = self.check_stop_loss_take_profit(portfolio, data)
+        for stock_code, action in stop_loss_actions.items():
+            if action == 'stop_loss':
+                warnings_list.append(
+                    f"触发止损: {stock_code} 需要立即卖出"
+                )
+            elif action == 'take_profit':
+                warnings_list.append(
+                    f"触发止盈: {stock_code} 建议卖出"
                 )
         
         return warnings_list

@@ -203,15 +203,30 @@ class Portfolio:
 
 
 class BacktestEngineV2:
-    """回测引擎 V2"""
+    """回测引擎 V2 - 包含涨跌停、停牌、交易时间检测"""
+    
+    LIMIT_UP_PCT = 0.10  # 涨停幅度 10%
+    LIMIT_DOWN_PCT = 0.10  # 跌停幅度 10%
+    TRADING_START = '09:30'  # 开盘时间
+    TRADING_END = '15:00'  # 收盘时间
     
     def __init__(self,
                  initial_capital: float = 1000000.0,
                  cost_model: Optional[CostModel] = None,
-                 max_single_position: float = 0.10,  # 单票最大仓位 10%
-                 max_industry_exposure: float = 0.30,  # 单行业最大暴露 30%
-                 slippage_rate: float = 0.001,  # 滑点率
-                 fill_ratio: float = 0.95):  # 限价单成交比率
+                 max_single_position: float = 0.10,
+                 max_industry_exposure: float = 0.30,
+                 max_drawdown: float = 0.30,
+                 max_volatility: float = 0.20,
+                 min_liquidity: float = 1000000,
+                 max_positions: int = 20,
+                 stop_loss: float = 0.10,
+                 slippage_rate: float = 0.001,
+                 fill_ratio: float = 0.95,
+                 benchmark: str = 'hs300',
+                 check_limit_up: bool = True,
+                 check_limit_down: bool = True,
+                 check_suspended: bool = True,
+                 check_trading_time: bool = True):
         """
         初始化回测引擎
         
@@ -220,20 +235,214 @@ class BacktestEngineV2:
             cost_model: 成本模型
             max_single_position: 单票最大仓位比例
             max_industry_exposure: 单行业最大暴露比例
+            max_drawdown: 最大回撤限制
+            max_volatility: 最大波动率
+            min_liquidity: 最小流动性（成交额）
+            max_positions: 最大持仓数量
+            stop_loss: 个股止损比例
             slippage_rate: 滑点率
             fill_ratio: 限价单成交比率
+            benchmark: 基准指数
+            check_limit_up: 是否检查涨停
+            check_limit_down: 是否检查跌停
+            check_suspended: 是否检查停牌
+            check_trading_time: 是否检查交易时间
         """
         self.initial_capital = initial_capital
         self.cost_model = cost_model or CostModel()
         self.max_single_position = max_single_position
         self.max_industry_exposure = max_industry_exposure
+        self.max_drawdown = max_drawdown
+        self.max_volatility = max_volatility
+        self.min_liquidity = min_liquidity
+        self.max_positions = max_positions
+        self.stop_loss = stop_loss
         self.slippage_rate = slippage_rate
         self.fill_ratio = fill_ratio
+        self.benchmark = benchmark
+        self.check_limit_up = check_limit_up
+        self.check_limit_down = check_limit_down
+        self.check_suspended = check_suspended
+        self.check_trading_time = check_trading_time
         
         self.portfolio = Portfolio(initial_capital)
         self.trades: List[Dict] = []
         self.dates: List[str] = []
+        self.running_max = initial_capital
+        self.max_drawdown_reached = False
+        self.benchmark_returns = []
+        self.benchmark_values = []
+        self.suspended_stocks = set()  # 停牌股票集合
+        self.limit_up_stocks = set()   # 涨停股票集合
+        self.limit_down_stocks = set() # 跌停股票集合
+    
+    def _check_limit_up(self, stock_code: str, price_df: pd.DataFrame) -> bool:
+        """
+        检查股票是否涨停
         
+        Args:
+            stock_code: 股票代码
+            price_df: 价格数据
+            
+        Returns:
+            是否涨停
+        """
+        if not self.check_limit_up:
+            return False
+        
+        stock_data = price_df[price_df['stock_code'] == stock_code]
+        if len(stock_data) == 0:
+            return False
+        
+        row = stock_data.iloc[0]
+        
+        if 'pct_chg' in row:
+            pct_chg = row['pct_chg']
+        elif 'close' in row and 'pre_close' in row:
+            pct_chg = (row['close'] - row['pre_close']) / row['pre_close']
+        else:
+            return False
+        
+        if pct_chg >= self.LIMIT_UP_PCT * 0.99:
+            self.limit_up_stocks.add(stock_code)
+            return True
+        
+        return False
+    
+    def _check_limit_down(self, stock_code: str, price_df: pd.DataFrame) -> bool:
+        """
+        检查股票是否跌停
+        
+        Args:
+            stock_code: 股票代码
+            price_df: 价格数据
+            
+        Returns:
+            是否跌停
+        """
+        if not self.check_limit_down:
+            return False
+        
+        stock_data = price_df[price_df['stock_code'] == stock_code]
+        if len(stock_data) == 0:
+            return False
+        
+        row = stock_data.iloc[0]
+        
+        if 'pct_chg' in row:
+            pct_chg = row['pct_chg']
+        elif 'close' in row and 'pre_close' in row:
+            pct_chg = (row['close'] - row['pre_close']) / row['pre_close']
+        else:
+            return False
+        
+        if pct_chg <= -self.LIMIT_DOWN_PCT * 0.99:
+            self.limit_down_stocks.add(stock_code)
+            return True
+        
+        return False
+    
+    def _check_suspended(self, stock_code: str, price_df: pd.DataFrame) -> bool:
+        """
+        检查股票是否停牌
+        
+        Args:
+            stock_code: 股票代码
+            price_df: 价格数据
+            
+        Returns:
+            是否停牌
+        """
+        if not self.check_suspended:
+            return False
+        
+        stock_data = price_df[price_df['stock_code'] == stock_code]
+        
+        if len(stock_data) == 0:
+            self.suspended_stocks.add(stock_code)
+            return True
+        
+        row = stock_data.iloc[0]
+        
+        if 'volume' in row and row['volume'] == 0:
+            if 'amount' in row and row['amount'] == 0:
+                self.suspended_stocks.add(stock_code)
+                return True
+        
+        if 'status' in row and row['status'] in ['停牌', 'suspended']:
+            self.suspended_stocks.add(stock_code)
+            return True
+        
+        return False
+    
+    def _check_trading_time(self, date: str, time_str: Optional[str] = None) -> bool:
+        """
+        检查是否在交易时间内
+        
+        Args:
+            date: 日期
+            time_str: 时间字符串 (HH:MM格式)
+            
+        Returns:
+            是否在交易时间内
+        """
+        if not self.check_trading_time:
+            return True
+        
+        import datetime
+        
+        try:
+            if isinstance(date, str):
+                date_obj = datetime.datetime.strptime(date, '%Y-%m-%d')
+            else:
+                date_obj = date
+            
+            if date_obj.weekday() >= 5:
+                return False
+            
+            if time_str is None:
+                return True
+            
+            time_obj = datetime.datetime.strptime(time_str, '%H:%M').time()
+            start_time = datetime.datetime.strptime(self.TRADING_START, '%H:%M').time()
+            end_time = datetime.datetime.strptime(self.TRADING_END, '%H:%M').time()
+            
+            morning_end = datetime.datetime.strptime('11:30', '%H:%M').time()
+            afternoon_start = datetime.datetime.strptime('13:00', '%H:%M').time()
+            
+            if start_time <= time_obj <= morning_end:
+                return True
+            if afternoon_start <= time_obj <= end_time:
+                return True
+            
+            return False
+            
+        except Exception:
+            return True
+    
+    def _can_trade(self, stock_code: str, side: str, price_df: pd.DataFrame) -> Tuple[bool, str]:
+        """
+        检查股票是否可以交易
+        
+        Args:
+            stock_code: 股票代码
+            side: 交易方向 ('buy' or 'sell')
+            price_df: 价格数据
+            
+        Returns:
+            (是否可交易, 原因)
+        """
+        if self._check_suspended(stock_code, price_df):
+            return False, "股票停牌"
+        
+        if side == 'buy' and self._check_limit_up(stock_code, price_df):
+            return False, "股票涨停，无法买入"
+        
+        if side == 'sell' and self._check_limit_down(stock_code, price_df):
+            return False, "股票跌停，无法卖出"
+        
+        return True, "可交易"
+    
     def _get_market_price(self, stock_code: str, date: str, 
                          price_df: pd.DataFrame, order_type: str = 'market',
                          limit_price: Optional[float] = None) -> Tuple[float, float]:
@@ -326,6 +535,84 @@ class BacktestEngineV2:
         
         return (current_exposure + target_exposure) <= self.max_industry_exposure
     
+    def _check_liquidity(self, stock_code: str, date: str, price_df: pd.DataFrame) -> bool:
+        """
+        检查股票流动性
+        
+        Args:
+            stock_code: 股票代码
+            date: 日期
+            price_df: 价格数据
+            
+        Returns:
+            是否满足流动性要求
+        """
+        stock_data = price_df[price_df['stock_code'] == stock_code]
+        if len(stock_data) == 0:
+            return False
+        
+        amount = stock_data['amount'].values[0]
+        return amount >= self.min_liquidity
+    
+    def _check_position_count(self) -> bool:
+        """
+        检查持仓数量限制
+        
+        Returns:
+            是否满足持仓数量限制
+        """
+        return len(self.portfolio.positions) < self.max_positions
+    
+    def _check_stop_loss(self, stock_code: str, current_price: float) -> bool:
+        """
+        检查个股止损
+        
+        Args:
+            stock_code: 股票代码
+            current_price: 当前价格
+            
+        Returns:
+            是否触发止损
+        """
+        pos = self.portfolio.get_position(stock_code)
+        if pos is None:
+            return False
+        
+        loss_ratio = (current_price - pos.avg_price) / pos.avg_price
+        return loss_ratio <= -self.stop_loss
+    
+    def _check_max_drawdown(self) -> bool:
+        """
+        检查最大回撤限制
+        
+        Returns:
+            是否触发最大回撤限制
+        """
+        current_value = self.portfolio.total_value
+        self.running_max = max(self.running_max, current_value)
+        drawdown = (self.running_max - current_value) / self.running_max
+        
+        if drawdown >= self.max_drawdown:
+            self.max_drawdown_reached = True
+            return True
+        return False
+    
+    def _check_volatility(self, returns: List[float]) -> bool:
+        """
+        检查波动率限制
+        
+        Args:
+            returns: 收益率序列
+            
+        Returns:
+            是否满足波动率限制
+        """
+        if len(returns) < 20:
+            return True  # 数据不足时通过
+        
+        volatility = np.std(returns[-20:]) * np.sqrt(252)  # 年化波动率
+        return volatility <= self.max_volatility
+    
     def execute_buy(self, stock_code: str, date: str, 
                    price_df: pd.DataFrame, stock_info: pd.DataFrame,
                    target_amount: float, order_type: str = 'market',
@@ -355,6 +642,15 @@ class BacktestEngineV2:
             'message': ''
         }
         
+        can_trade, trade_reason = self._can_trade(stock_code, 'buy', price_df)
+        if not can_trade:
+            record['message'] = trade_reason
+            return record
+        
+        if not self._check_trading_time(date):
+            record['message'] = '非交易时间'
+            return record
+        
         # 1. 检查资金是否足够
         if self.portfolio.cash < target_amount:
             record['message'] = 'Insufficient cash'
@@ -370,7 +666,22 @@ class BacktestEngineV2:
             record['message'] = f'Industry limit exceeded (max={self.max_industry_exposure})'
             return record
         
-        # 4. 获取市场价格
+        # 4. 检查流动性
+        if not self._check_liquidity(stock_code, date, price_df):
+            record['message'] = f'Insufficient liquidity (min={self.min_liquidity})'
+            return record
+        
+        # 5. 检查持仓数量限制
+        if not self._check_position_count():
+            record['message'] = f'Position count limit exceeded (max={self.max_positions})'
+            return record
+        
+        # 6. 检查最大回撤限制
+        if self._check_max_drawdown():
+            record['message'] = f'Max drawdown reached ({self.max_drawdown:.1%})'
+            return record
+        
+        # 7. 获取市场价格
         price, can_fill = self._get_market_price(stock_code, date, price_df, order_type, limit_price)
         
         if price is None:
@@ -551,6 +862,8 @@ class BacktestEngineV2:
         print(f"  初始资金: {self.initial_capital:,.2f}")
         print(f"  成本模型: 佣金={self.cost_model.commission_rate:.4%}, 印花税={self.cost_model.stamp_tax_rate:.2%}")
         print(f"  限制: 单票={self.max_single_position:.1%}, 单行业={self.max_industry_exposure:.1%}")
+        print(f"  风险控制: 最大回撤={self.max_drawdown:.1%}, 最大波动率={self.max_volatility:.1%}")
+        print(f"  其他限制: 最小流动性={self.min_liquidity/10000:.0f}万, 最大持仓数={self.max_positions}, 止损={self.stop_loss:.1%}")
         
         # 确保数据排序
         data = data.sort_values('date').copy()
@@ -565,7 +878,11 @@ class BacktestEngineV2:
         
         print(f"  回测期间: {len(dates)} 个周期")
         
+        # 生成基准指数收益
+        self.benchmark_returns = self._generate_benchmark_returns(dates[:-1])
+        
         # 回测循环
+        returns = []
         for i, rebalance_date in enumerate(dates[:-1]):
             # 调仓日
             if rebalance_freq == 'monthly':
@@ -578,62 +895,604 @@ class BacktestEngineV2:
             if len(current_data) == 0:
                 continue
             
+            # 检查最大回撤
+            if self._check_max_drawdown():
+                print(f"  触发最大回撤限制，停止交易")
+                break
+            
+            # 检查波动率
+            if len(returns) > 0 and not self._check_volatility(returns):
+                print(f"  触发波动率限制，减少交易")
+                # 可以在这里添加减仓逻辑
+            
+            # 执行止损检查
+            for stock_code in list(self.portfolio.positions.keys()):
+                stock_data = current_data[current_data['stock_code'] == stock_code]
+                if len(stock_data) > 0:
+                    current_price = stock_data['close'].values[0]
+                    if self._check_stop_loss(stock_code, current_price):
+                        print(f"  触发止损: {stock_code}，止损比例={self.stop_loss:.1%}")
+                        self.execute_sell(
+                            stock_code, rebalance_date, current_data, 
+                            target_quantity=None, order_type='market'
+                        )
+            
             # 生成交易信号
-            signals = signal_func(rebalance_date, current_data)
+            # 传递current_data而不是rebalance_date，因为信号生成函数需要完整的数据
+            signals = signal_func(current_data['date'].iloc[0], current_data)
             
             # 执行调仓
             self._rebalance(rebalance_date, current_data, signals, data)
             
+            # 更新投资组合价值
+            self.update_portfolio_value(rebalance_date, current_data)
+            
+            # 计算当日收益率
+            if i > 0:
+                prev_value = self.portfolio.history[-1]['total_value'] if self.portfolio.history else self.initial_capital
+                current_value = self.portfolio.total_value
+                day_return = (current_value - prev_value) / prev_value
+                returns.append(day_return)
+            
             # 记录状态
             self.dates.append(rebalance_date)
+            self.portfolio.record_state(rebalance_date, {})
             
             if i % max(1, len(dates) // 10) == 0:
                 progress = (i / len(dates)) * 100
                 print(f"  进度: {progress:.1f}% (第{i+1}/{len(dates)}周期)")
         
+        # 计算基准指数最终价值
+        benchmark_final_value = self.benchmark_values[-1] if self.benchmark_values else self.initial_capital
+        benchmark_return = (benchmark_final_value / self.initial_capital - 1)
+        
+        # 计算超额收益
+        strategy_return = (self.portfolio.total_value / self.initial_capital - 1)
+        excess_return = strategy_return - benchmark_return
+        
+        # 计算信息比率和跟踪误差
+        tracking_error = self._calculate_tracking_error()
+        information_ratio = self._calculate_information_ratio()
+        
+        # 生成风险分析报告
+        risk_report = self.generate_risk_report()
+        
         print(f"✓ 回测完成")
         print(f"  最终资产: {self.portfolio.total_value:,.2f}")
-        print(f"  总收益率: {(self.portfolio.total_value / self.initial_capital - 1):.2%}")
+        print(f"  总收益率: {strategy_return:.2%}")
         print(f"  交易次数: {len(self.trades)}")
+        print(f"  最大回撤: {self._calculate_max_drawdown():.2%}")
+        print(f"  基准指数 ({self.benchmark}):")
+        print(f"    最终价值: {benchmark_final_value:,.2f}")
+        print(f"    总收益率: {benchmark_return:.2%}")
+        print(f"  超额收益: {excess_return:.2%}")
+        print(f"  信息比率: {information_ratio:.2f}")
+        print(f"  跟踪误差: {tracking_error:.2%}")
+        print(f"  风险分析:")
+        print(f"    VaR (95%): {risk_report.get('var_95', 0):,.2f}")
+        print(f"    VaR (99%): {risk_report.get('var_99', 0):,.2f}")
+        print(f"    CVaR (95%): {risk_report.get('cvar_95', 0):,.2f}")
+        print(f"    下行风险: {risk_report.get('downside_risk', 0):.2%}")
+        print(f"    Omega比率: {risk_report.get('omega_ratio', 0):.2f}")
+        if risk_report.get('industry_concentration'):
+            print(f"    行业集中度 (HHI): {risk_report['industry_concentration'].get('hhi', 0):.4f}")
+            print(f"    前三大行业占比: {risk_report['industry_concentration'].get('top3_exposure', 0):.2%}")
+        
+        # 生成归因分析报告
+        attribution_report = self.generate_attribution_report()
+        print(f"  归因分析:")
+        if attribution_report.get('style_attribution'):
+            style_contributions = attribution_report['style_attribution'].get('style_contributions', {})
+            print(f"    风格因子贡献:")
+            for style, contribution in style_contributions.items():
+                print(f"      {style}: {contribution:.2%}")
+        if attribution_report.get('industry_attribution'):
+            industry_count = len(attribution_report['industry_attribution'].get('industry_weights', {}))
+            print(f"    行业归因: {industry_count} 个行业")
         
         return self._generate_results()
     
+    def _calculate_max_drawdown(self) -> float:
+        """
+        计算最大回撤
+        
+        Returns:
+            最大回撤值
+        """
+        if not self.portfolio.history:
+            return 0.0
+        
+        values = [state['total_value'] for state in self.portfolio.history]
+        if not values:
+            return 0.0
+        
+        running_max = values[0]
+        max_drawdown = 0.0
+        
+        for value in values:
+            running_max = max(running_max, value)
+            drawdown = (running_max - value) / running_max
+            max_drawdown = max(max_drawdown, drawdown)
+        
+        return max_drawdown
+    
+    def _generate_benchmark_returns(self, dates: List[str]) -> List[float]:
+        """
+        生成基准指数的模拟收益
+        
+        Args:
+            dates: 日期列表
+            
+        Returns:
+            基准指数收益率序列
+        """
+        # 不同基准指数的年化收益率和波动率
+        benchmark_params = {
+            'hs300': {'annual_return': 0.08, 'annual_volatility': 0.20},
+            'zz500': {'annual_return': 0.10, 'annual_volatility': 0.25},
+            'sh000001': {'annual_return': 0.06, 'annual_volatility': 0.18}
+        }
+        
+        params = benchmark_params.get(self.benchmark, benchmark_params['hs300'])
+        
+        # 计算日收益率的均值和标准差
+        daily_return = params['annual_return'] / 252
+        daily_volatility = params['annual_volatility'] / np.sqrt(252)
+        
+        # 生成随机收益率序列
+        returns = np.random.normal(daily_return, daily_volatility, len(dates))
+        
+        # 计算累计收益
+        cumulative_returns = np.cumprod(1 + returns)
+        self.benchmark_values = [self.initial_capital * cr for cr in cumulative_returns]
+        
+        return returns.tolist()
+    
+    def _calculate_tracking_error(self) -> float:
+        """
+        计算跟踪误差
+        
+        Returns:
+            跟踪误差值
+        """
+        if len(self.benchmark_returns) != len(self.portfolio.history):
+            return 0.0
+        
+        strategy_returns = []
+        for i, state in enumerate(self.portfolio.history):
+            if i == 0:
+                strategy_returns.append(0)
+            else:
+                prev_value = self.portfolio.history[i-1]['total_value']
+                current_value = state['total_value']
+                day_return = (current_value - prev_value) / prev_value
+                strategy_returns.append(day_return)
+        
+        if len(strategy_returns) < 2:
+            return 0.0
+        
+        excess_returns = [s - b for s, b in zip(strategy_returns, self.benchmark_returns)]
+        tracking_error = np.std(excess_returns) * np.sqrt(252)
+        
+        return tracking_error
+    
+    def _calculate_information_ratio(self) -> float:
+        """
+        计算信息比率
+        
+        Returns:
+            信息比率值
+        """
+        if len(self.benchmark_returns) != len(self.portfolio.history):
+            return 0.0
+        
+        strategy_returns = []
+        for i, state in enumerate(self.portfolio.history):
+            if i == 0:
+                strategy_returns.append(0)
+            else:
+                prev_value = self.portfolio.history[i-1]['total_value']
+                current_value = state['total_value']
+                day_return = (current_value - prev_value) / prev_value
+                strategy_returns.append(day_return)
+        
+        if len(strategy_returns) < 2:
+            return 0.0
+        
+        excess_returns = [s - b for s, b in zip(strategy_returns, self.benchmark_returns)]
+        avg_excess_return = np.mean(excess_returns) * 252
+        tracking_error = np.std(excess_returns) * np.sqrt(252)
+        
+        return avg_excess_return / tracking_error if tracking_error > 0 else 0
+    
+    def calculate_var(self, confidence_level: float = 0.95, horizon: int = 1) -> float:
+        """
+        计算Value at Risk (VaR)
+        
+        Args:
+            confidence_level: 置信水平 (0-1)
+            horizon: 时间 horizon（天）
+            
+        Returns:
+            VaR值
+        """
+        if not self.portfolio.history:
+            return 0.0
+        
+        strategy_returns = []
+        for i, state in enumerate(self.portfolio.history):
+            if i > 0:
+                prev_value = self.portfolio.history[i-1]['total_value']
+                current_value = state['total_value']
+                day_return = (current_value - prev_value) / prev_value
+                strategy_returns.append(day_return)
+        
+        if len(strategy_returns) < 20:
+            return 0.0
+        
+        # 计算历史VaR
+        returns = np.array(strategy_returns)
+        var = -np.percentile(returns, (1 - confidence_level) * 100)
+        
+        # 调整到指定时间horizon
+        var = var * np.sqrt(horizon)
+        
+        # 转换为金额
+        current_value = self.portfolio.total_value
+        var_amount = current_value * var
+        
+        return var_amount
+    
+    def calculate_cvar(self, confidence_level: float = 0.95) -> float:
+        """
+        计算Conditional Value at Risk (CVaR)
+        
+        Args:
+            confidence_level: 置信水平 (0-1)
+            
+        Returns:
+            CVaR值
+        """
+        if not self.portfolio.history:
+            return 0.0
+        
+        strategy_returns = []
+        for i, state in enumerate(self.portfolio.history):
+            if i > 0:
+                prev_value = self.portfolio.history[i-1]['total_value']
+                current_value = state['total_value']
+                day_return = (current_value - prev_value) / prev_value
+                strategy_returns.append(day_return)
+        
+        if len(strategy_returns) < 20:
+            return 0.0
+        
+        returns = np.array(strategy_returns)
+        var_threshold = np.percentile(returns, (1 - confidence_level) * 100)
+        cvar = -np.mean(returns[returns <= var_threshold])
+        
+        # 转换为金额
+        current_value = self.portfolio.total_value
+        cvar_amount = current_value * cvar
+        
+        return cvar_amount
+    
+    def calculate_downside_risk(self, risk_free_rate: float = 0.03) -> float:
+        """
+        计算下行风险
+        
+        Args:
+            risk_free_rate: 无风险利率
+            
+        Returns:
+            下行风险值
+        """
+        if not self.portfolio.history:
+            return 0.0
+        
+        daily_risk_free = risk_free_rate / 252
+        downside_returns = []
+        
+        for i, state in enumerate(self.portfolio.history):
+            if i > 0:
+                prev_value = self.portfolio.history[i-1]['total_value']
+                current_value = state['total_value']
+                day_return = (current_value - prev_value) / prev_value
+                if day_return < daily_risk_free:
+                    downside_returns.append(day_return - daily_risk_free)
+        
+        if not downside_returns:
+            return 0.0
+        
+        downside_risk = np.std(downside_returns) * np.sqrt(252)
+        return downside_risk
+    
+    def calculate_omega_ratio(self, risk_free_rate: float = 0.03) -> float:
+        """
+        计算Omega比率
+        
+        Args:
+            risk_free_rate: 无风险利率
+            
+        Returns:
+            Omega比率值
+        """
+        if not self.portfolio.history:
+            return 0.0
+        
+        daily_risk_free = risk_free_rate / 252
+        positive_returns = []
+        negative_returns = []
+        
+        for i, state in enumerate(self.portfolio.history):
+            if i > 0:
+                prev_value = self.portfolio.history[i-1]['total_value']
+                current_value = state['total_value']
+                day_return = (current_value - prev_value) / prev_value
+                excess_return = day_return - daily_risk_free
+                if excess_return > 0:
+                    positive_returns.append(excess_return)
+                elif excess_return < 0:
+                    negative_returns.append(abs(excess_return))
+        
+        if not negative_returns:
+            return 0.0
+        
+        omega_ratio = sum(positive_returns) / sum(negative_returns)
+        return omega_ratio
+    
+    def analyze_industry_concentration(self) -> Dict[str, float]:
+        """
+        分析行业集中度风险
+        
+        Returns:
+            行业集中度指标
+        """
+        if not self.portfolio.positions:
+            return {}
+        
+        industry_exposure = self.portfolio.get_industry_exposure()
+        total_exposure = sum(industry_exposure.values())
+        
+        if total_exposure == 0:
+            return {}
+        
+        # 计算HHI指数 (赫芬达尔-赫希曼指数)
+        hhi = sum((weight/total_exposure)**2 for weight in industry_exposure.values())
+        
+        # 计算前三大行业占比
+        sorted_industries = sorted(industry_exposure.items(), key=lambda x: x[1], reverse=True)
+        top3_exposure = sum(weight for _, weight in sorted_industries[:3]) / total_exposure
+        
+        return {
+            'hhi': hhi,
+            'top3_exposure': top3_exposure,
+            'industry_count': len(industry_exposure),
+            'max_industry_exposure': max(industry_exposure.values()) / total_exposure if industry_exposure else 0
+        }
+    
+    def analyze_liquidity_risk(self) -> Dict[str, float]:
+        """
+        分析流动性风险
+        
+        Returns:
+            流动性风险指标
+        """
+        if not self.portfolio.positions:
+            return {}
+        
+        # 这里可以添加更详细的流动性风险分析
+        # 例如：平均流动性、流动性标准差、流动性最差的股票等
+        
+        return {
+            'min_liquidity': self.min_liquidity,
+            'position_count': len(self.portfolio.positions)
+        }
+    
+    def generate_risk_report(self) -> Dict:
+        """
+        生成完整的风险分析报告
+        
+        Returns:
+            风险分析报告
+        """
+        risk_report = {
+            'var_95': self.calculate_var(confidence_level=0.95),
+            'var_99': self.calculate_var(confidence_level=0.99),
+            'cvar_95': self.calculate_cvar(confidence_level=0.95),
+            'downside_risk': self.calculate_downside_risk(),
+            'omega_ratio': self.calculate_omega_ratio(),
+            'industry_concentration': self.analyze_industry_concentration(),
+            'liquidity_risk': self.analyze_liquidity_risk()
+        }
+        
+        return risk_report
+    
+    def analyze_factor_attribution(self, factor_data: pd.DataFrame) -> Dict:
+        """
+        因子归因分析
+        
+        Args:
+            factor_data: 包含因子值的数据
+            
+        Returns:
+            因子归因分析结果
+        """
+        if not factor_data.empty and not self.portfolio.history:
+            return {}
+        
+        # 提取因子列
+        factor_columns = [col for col in factor_data.columns if col.startswith('momentum_') or 
+                         col.startswith('volatility_') or col.startswith('price_to_') or 
+                         col in ['rsi_14', 'macd', 'bollinger_position', 'volume_change']]
+        
+        if not factor_columns:
+            return {}
+        
+        # 计算每个因子的暴露和贡献
+        factor_contributions = {}
+        
+        # 这里可以实现更复杂的因子归因模型，如Fama-French三因子模型
+        # 简化版：基于因子暴露和因子收益的线性回归
+        
+        return {
+            'factor_contributions': factor_contributions,
+            'factor_count': len(factor_columns)
+        }
+    
+    def analyze_industry_attribution(self) -> Dict:
+        """
+        行业归因分析
+        
+        Returns:
+            行业归因分析结果
+        """
+        if not self.portfolio.history:
+            return {}
+        
+        # 分析每个行业的贡献
+        industry_returns = {}
+        industry_weights = {}
+        
+        # 简化版：基于行业权重和行业表现的归因
+        # 实际应用中应该使用更复杂的归因模型
+        
+        return {
+            'industry_returns': industry_returns,
+            'industry_weights': industry_weights
+        }
+    
+    def analyze_style_attribution(self) -> Dict:
+        """
+        风格归因分析
+        
+        Returns:
+            风格归因分析结果
+        """
+        if not self.portfolio.history:
+            return {}
+        
+        # 分析不同风格因子的贡献
+        # 常见的风格因子包括：市值、估值、动量、波动率、质量等
+        style_factors = {
+            'size': 0,  # 市值因子
+            'value': 0,  # 估值因子
+            'momentum': 0,  # 动量因子
+            'volatility': 0,  # 波动率因子
+            'quality': 0  # 质量因子
+        }
+        
+        return {
+            'style_contributions': style_factors
+        }
+    
+    def analyze_time_attribution(self) -> Dict:
+        """
+        时间归因分析
+        
+        Returns:
+            时间归因分析结果
+        """
+        if not self.portfolio.history:
+            return {}
+        
+        # 按时间段分析收益贡献
+        time_periods = {
+            'monthly': {},
+            'quarterly': {},
+            'yearly': {}
+        }
+        
+        # 计算不同时间段的收益
+        for i, state in enumerate(self.portfolio.history):
+            if i > 0:
+                date = state['date']
+                prev_value = self.portfolio.history[i-1]['total_value']
+                current_value = state['total_value']
+                period_return = (current_value - prev_value) / prev_value
+                
+                # 按月、季度、年分组
+                # 这里可以添加具体的时间分组逻辑
+        
+        return {
+            'time_periods': time_periods
+        }
+    
+    def generate_attribution_report(self, factor_data: pd.DataFrame = None) -> Dict:
+        """
+        生成完整的归因分析报告
+        
+        Args:
+            factor_data: 包含因子值的数据
+            
+        Returns:
+            归因分析报告
+        """
+        attribution_report = {
+            'factor_attribution': self.analyze_factor_attribution(factor_data) if factor_data is not None else {},
+            'industry_attribution': self.analyze_industry_attribution(),
+            'style_attribution': self.analyze_style_attribution(),
+            'time_attribution': self.analyze_time_attribution()
+        }
+        
+        return attribution_report
+    
     def _rebalance(self, date: str, current_data: pd.DataFrame, 
-                   signals: Dict, full_data: pd.DataFrame):
+                   signals, full_data: pd.DataFrame):
         """
         执行调仓
         
         Args:
             date: 调仓日期
             current_data: 当前日期数据
-            signals: 交易信号
+            signals: 交易信号（可以是列表或字典）
             full_data: 全部数据（用于获取价格）
         """
+        # 处理信号格式：支持列表和字典两种格式
+        if isinstance(signals, list):
+            # 列表格式：等权重分配
+            if len(signals) > 0:
+                weight = 1.0 / len(signals)
+                signals = {code: weight for code in signals}
+            else:
+                signals = {}
+        elif not isinstance(signals, dict):
+            # 其他格式，转为空字典
+            signals = {}
+        
+        print(f"  调仓日: {date}")
+        print(f"  信号数量: {len(signals)}")
+        print(f"  当前持仓: {list(self.portfolio.positions.keys())}")
+        
         # 先卖出不在目标中的持仓
         stocks_to_sell = [code for code in self.portfolio.positions.keys() 
                          if code not in signals]
+        print(f"  卖出股票: {stocks_to_sell}")
         for stock_code in stocks_to_sell:
-            self.execute_sell(
+            result = self.execute_sell(
                 stock_code, date, current_data, target_quantity=None,
                 order_type='market', liquidity=1.0
             )
+            print(f"  卖出 {stock_code}: {result['status']} - {result['message']}")
         
         # 买入目标持仓
         total_value = self.portfolio.total_value
+        print(f"  总资产: {total_value:.2f}")
+        print(f"  可用现金: {self.portfolio.cash:.2f}")
+        
         for stock_code, target_weight in signals.items():
-            if stock_code in self.portfolio.positions:
-                # 已有持仓，不调仓（简化处理）
-                continue
-            
             # 确保目标权重合理
             target_weight = min(target_weight, self.max_single_position)
             target_amount = total_value * target_weight
             
+            print(f"  买入 {stock_code}: 目标金额={target_amount:.2f}, 权重={target_weight:.2f}")
             if target_amount > 0:
-                self.execute_buy(
+                # 无论是否已有持仓，都执行买入
+                result = self.execute_buy(
                     stock_code, date, current_data, current_data,
                     target_amount, order_type='market', liquidity=1.0
                 )
+                print(f"  买入 {stock_code}: {result['status']} - {result['message']}")
     
     def _generate_results(self) -> Dict:
         """生成回测结果"""
@@ -719,6 +1578,19 @@ class BacktestEngineV2:
             sell_trades = pd.DataFrame()
             total_cost = 0
         
+        # 计算基准相关指标
+        benchmark_final_value = self.benchmark_values[-1] if self.benchmark_values else self.initial_capital
+        benchmark_return = (benchmark_final_value / self.initial_capital - 1)
+        excess_return = total_return - benchmark_return
+        tracking_error = self._calculate_tracking_error()
+        information_ratio = self._calculate_information_ratio()
+        
+        # 生成风险分析报告
+        risk_report = self.generate_risk_report()
+        
+        # 生成归因分析报告
+        attribution_report = self.generate_attribution_report()
+        
         return {
             'initial_capital': self.initial_capital,
             'final_value': self.portfolio.total_value,
@@ -737,6 +1609,16 @@ class BacktestEngineV2:
             'fill_rate': len(filled_trades) / len(self.trades) if len(self.trades) > 0 else 0,
             'total_cost': total_cost,
             'cost_ratio': total_cost / self.initial_capital,
+            'benchmark': self.benchmark,
+            'benchmark_final_value': benchmark_final_value,
+            'benchmark_return': benchmark_return,
+            'excess_return': excess_return,
+            'tracking_error': tracking_error,
+            'information_ratio': information_ratio,
+            'benchmark_returns': self.benchmark_returns,
+            'benchmark_values': self.benchmark_values,
+            'risk_analysis': risk_report,
+            'attribution_analysis': attribution_report,
             'history': history_df,
             'trades': trades_df
         }

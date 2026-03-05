@@ -1,7 +1,120 @@
 {
-  "last_update": "2024-03-01 00:00:00",
-  "total_assets": 1000000.0,
-  "cash": 1000000.0,
-  "portfolio_value": 0.0,
-  "positions": []
+  "last_update": "2026-03-05 18:30:31",
+  "total_assets": 1079934.8364929906,
+  "cash": 407857.0,
+  "portfolio_value": 672077.8364929907,
+  "positions": [
+    {
+      "stock_code": "sh601899",
+      "stock_name": "紫金矿业",
+      "quantity": 2900,
+      "avg_price": 40.4,
+      "cost_basis": 117160.0,
+      "current_price": 41.56715703029357,
+      "current_value": 120544.75538785136,
+      "profit_loss": 3384.755387851357,
+      "profit_loss_pct": 2.889002550231613,
+      "entry_date": "2026-03-05",
+      "holding_days": 0
+    },
+    {
+      "stock_code": "sh600938",
+      "stock_name": "中国海油",
+      "quantity": 3000,
+      "avg_price": 39.46,
+      "cost_basis": 118380.0,
+      "current_price": 35.34197149119048,
+      "current_value": 106025.91447357144,
+      "profit_loss": -12354.085526428564,
+      "profit_loss_pct": -10.435956687302385,
+      "entry_date": "2026-03-05",
+      "holding_days": 0
+    },
+    {
+      "stock_code": "sh600410",
+      "stock_name": "华胜天成",
+      "quantity": 4200,
+      "avg_price": 28.34,
+      "cost_basis": 119028.0,
+      "current_price": 33.00699990595438,
+      "current_value": 138629.3996050084,
+      "profit_loss": 19601.399605008395,
+      "profit_loss_pct": 16.467889576409245,
+      "entry_date": "2026-03-05",
+      "holding_days": 0
+    },
+    {
+      "stock_code": "sh601857",
+      "stock_name": "中国石油",
+      "quantity": 10100,
+      "avg_price": 11.8,
+      "cost_basis": 119180.0,
+      "current_price": 21.970263453094482,
+      "current_value": 221899.66087625426,
+      "profit_loss": 102719.66087625426,
+      "profit_loss_pct": 86.18867333130916,
+      "entry_date": "2026-03-05",
+      "holding_days": 0
+    },
+    {
+      "stock_code": "sh600989",
+      "stock_name": "宝丰能源",
+      "quantity": 4500,
+      "avg_price": 26.31,
+      "cost_basis": 118395.0,
+      "current_price": 18.884023588956733,
+      "current_value": 84978.1061503053,
+      "profit_loss": -33416.893849694694,
+      "profit_loss_pct": -28.22491984433016,
+      "entry_date": "2026-03-05",
+      "holding_days": 0
+    }
+  ],
+  "trade_history": [
+    {
+      "date": "2026-03-05 02:35:09",
+      "action": "buy",
+      "stock_code": "sh601899",
+      "stock_name": "紫金矿业",
+      "price": 40.4,
+      "quantity": 2900,
+      "amount": 117160.0
+    },
+    {
+      "date": "2026-03-05 02:35:09",
+      "action": "buy",
+      "stock_code": "sh600938",
+      "stock_name": "中国海油",
+      "price": 39.46,
+      "quantity": 3000,
+      "amount": 118380.0
+    },
+    {
+      "date": "2026-03-05 02:35:09",
+      "action": "buy",
+      "stock_code": "sh600410",
+      "stock_name": "华胜天成",
+      "price": 28.34,
+      "quantity": 4200,
+      "amount": 119028.0
+    },
+    {
+      "date": "2026-03-05 02:35:09",
+      "action": "buy",
+      "stock_code": "sh601857",
+      "stock_name": "中国石油",
+      "price": 11.8,
+      "quantity": 10100,
+      "amount": 119180.0
+    },
+    {
+      "date": "2026-03-05 02:35:09",
+      "action": "buy",
+      "stock_code": "sh600989",
+      "stock_name": "宝丰能源",
+      "price": 26.31,
+      "quantity": 4500,
+      "amount": 118395.0
+    }
+  ]
 }
