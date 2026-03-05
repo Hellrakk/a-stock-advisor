@@ -533,6 +533,119 @@ class PortfolioTracker:
         report.append("=" * 60)
         
         return "\n".join(report)
+    
+    def manual_add_position(self, stock_code: str, stock_name: str, 
+                            quantity: int, avg_price: float, 
+                            current_price: float = None,
+                            sector: str = "", entry_date: str = None):
+        """
+        手动添加持仓（不扣现金，直接设置持仓状态）
+        
+        Args:
+            stock_code: 股票代码
+            stock_name: 股票名称
+            quantity: 持仓数量
+            avg_price: 成本价
+            current_price: 当前价格（默认等于成本价）
+            sector: 所属行业
+            entry_date: 建仓日期
+        """
+        if current_price is None:
+            current_price = avg_price
+        
+        if entry_date is None:
+            entry_date = datetime.now().strftime('%Y-%m-%d')
+        
+        profit_loss = (current_price - avg_price) * quantity
+        profit_loss_pct = (current_price - avg_price) / avg_price * 100 if avg_price > 0 else 0
+        
+        position = Position(
+            stock_code=stock_code,
+            stock_name=stock_name,
+            quantity=quantity,
+            avg_price=avg_price,
+            cost_basis=avg_price * quantity,
+            current_price=current_price,
+            current_value=current_price * quantity,
+            profit_loss=profit_loss,
+            profit_loss_pct=profit_loss_pct,
+            entry_date=entry_date,
+            holding_days=0,
+            sector=sector,
+            alpha_score=0.0
+        )
+        
+        self.positions[stock_code] = position
+        self._update_portfolio_value()
+        self._save_state()
+        
+        print(f"✓ 手动添加持仓: {stock_name}({stock_code}) {quantity}股 @ {avg_price:.2f}元")
+        return position
+    
+    def manual_update_position(self, stock_code: str, **kwargs):
+        """
+        手动更新持仓信息
+        
+        Args:
+            stock_code: 股票代码
+            **kwargs: 要更新的字段 (quantity, avg_price, current_price, sector 等)
+        """
+        if stock_code not in self.positions:
+            raise ValueError(f"股票{stock_code}不在持仓中")
+        
+        position = self.positions[stock_code]
+        
+        for key, value in kwargs.items():
+            if hasattr(position, key):
+                setattr(position, key, value)
+        
+        position.cost_basis = position.avg_price * position.quantity
+        position.current_value = position.current_price * position.quantity
+        position.profit_loss = (position.current_price - position.avg_price) * position.quantity
+        position.profit_loss_pct = (position.current_price - position.avg_price) / position.avg_price * 100 if position.avg_price > 0 else 0
+        
+        self._update_portfolio_value()
+        self._save_state()
+        
+        print(f"✓ 更新持仓: {position.stock_name}({stock_code})")
+        return position
+    
+    def manual_delete_position(self, stock_code: str):
+        """
+        手动删除持仓
+        
+        Args:
+            stock_code: 股票代码
+        """
+        if stock_code not in self.positions:
+            raise ValueError(f"股票{stock_code}不在持仓中")
+        
+        position = self.positions[stock_code]
+        del self.positions[stock_code]
+        
+        self._update_portfolio_value()
+        self._save_state()
+        
+        print(f"✓ 删除持仓: {position.stock_name}({stock_code})")
+    
+    def manual_set_cash(self, cash: float):
+        """
+        手动设置现金
+        
+        Args:
+            cash: 现金金额
+        """
+        self.cash = cash
+        self.total_assets = self.cash + self.portfolio_value
+        self._save_state()
+        print(f"✓ 设置现金: ¥{cash:,.2f}")
+    
+    def clear_all_positions(self):
+        """清空所有持仓"""
+        self.positions.clear()
+        self._update_portfolio_value()
+        self._save_state()
+        print("✓ 已清空所有持仓")
 
 
 # 测试代码

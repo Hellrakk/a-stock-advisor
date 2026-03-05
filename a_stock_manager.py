@@ -1800,9 +1800,10 @@ def position_management():
         print("6. 买入操作")
         print("7. 卖出操作")
         print("8. 持仓调整建议")
+        print("9. 手动修改持仓 ⭐新增")
         print("0. 返回")
         
-        choice = input("\n请选择 (0-8): ").strip()
+        choice = input("\n请选择 (0-9): ").strip()
         
         if choice == '1':
             print_info("凯利公式仓位计算...")
@@ -1837,8 +1838,8 @@ def position_management():
                 print(f"\n{Color.BOLD}持仓止损止盈状态:{Color.ENDC}")
                 for code, pos in tracker.positions.items():
                     profit_pct = pos.profit_loss_pct
-                    stop_loss_price = pos.cost_price * 0.85
-                    take_profit_price = pos.cost_price * 1.30
+                    stop_loss_price = pos.avg_price * 0.85
+                    take_profit_price = pos.avg_price * 1.30
                     
                     status = "正常"
                     if pos.current_price <= stop_loss_price:
@@ -1882,6 +1883,143 @@ def position_management():
             print_info("生成持仓调整建议...")
             tracker = PortfolioTracker()
             
+        elif choice == '9':
+            print_info("手动修改持仓...")
+            tracker = PortfolioTracker()
+            
+            print(f"\n{Color.BOLD}手动持仓管理{Color.ENDC}")
+            print("1. 添加持仓")
+            print("2. 修改持仓")
+            print("3. 删除持仓")
+            print("4. 设置现金")
+            print("5. 清空所有持仓")
+            print("6. 查看当前持仓")
+            print("0. 返回")
+            
+            sub_choice = input("\n请选择 (0-6): ").strip()
+            
+            if sub_choice == '1':
+                print(f"\n{Color.BOLD}添加新持仓{Color.ENDC}")
+                stock_code = input("股票代码 (如 sh600519): ").strip()
+                stock_name = input("股票名称: ").strip()
+                quantity = int(input("持仓数量 (股): "))
+                avg_price = float(input("成本价: "))
+                current_price_input = input("当前价格 (回车=成本价): ").strip()
+                current_price = float(current_price_input) if current_price_input else None
+                sector = input("所属行业 (可选): ").strip()
+                
+                try:
+                    tracker.manual_add_position(stock_code, stock_name, quantity, avg_price, current_price, sector)
+                    print_success("持仓添加成功！")
+                except Exception as e:
+                    print_error(f"添加失败: {e}")
+                    
+            elif sub_choice == '2':
+                print(f"\n{Color.BOLD}修改持仓{Color.ENDC}")
+                if not tracker.positions:
+                    print_warning("当前无持仓")
+                else:
+                    print("当前持仓:")
+                    for i, (code, pos) in enumerate(tracker.positions.items(), 1):
+                        print(f"  {i}. {pos.stock_name}({code}): {pos.quantity}股 @ {pos.avg_price:.2f}元")
+                    
+                    idx = input("\n选择要修改的持仓序号 (或输入股票代码): ").strip()
+                    
+                    if idx.isdigit():
+                        idx = int(idx) - 1
+                        stock_code = list(tracker.positions.keys())[idx] if 0 <= idx < len(tracker.positions) else None
+                    else:
+                        stock_code = idx
+                    
+                    if stock_code and stock_code in tracker.positions:
+                        pos = tracker.positions[stock_code]
+                        print(f"\n当前: {pos.stock_name} {pos.quantity}股 @ {pos.avg_price:.2f}元")
+                        
+                        print("\n输入新值 (回车保持不变):")
+                        new_quantity = input(f"持仓数量 [{pos.quantity}]: ").strip()
+                        new_avg_price = input(f"成本价 [{pos.avg_price:.2f}]: ").strip()
+                        new_current_price = input(f"当前价 [{pos.current_price:.2f}]: ").strip()
+                        
+                        updates = {}
+                        if new_quantity:
+                            updates['quantity'] = int(new_quantity)
+                        if new_avg_price:
+                            updates['avg_price'] = float(new_avg_price)
+                        if new_current_price:
+                            updates['current_price'] = float(new_current_price)
+                        
+                        if updates:
+                            try:
+                                tracker.manual_update_position(stock_code, **updates)
+                                print_success("持仓更新成功！")
+                            except Exception as e:
+                                print_error(f"更新失败: {e}")
+                        else:
+                            print_info("未做任何修改")
+                    else:
+                        print_error("无效的选择")
+                        
+            elif sub_choice == '3':
+                print(f"\n{Color.BOLD}删除持仓{Color.ENDC}")
+                if not tracker.positions:
+                    print_warning("当前无持仓")
+                else:
+                    print("当前持仓:")
+                    for i, (code, pos) in enumerate(tracker.positions.items(), 1):
+                        print(f"  {i}. {pos.stock_name}({code}): {pos.quantity}股")
+                    
+                    idx = input("\n选择要删除的持仓序号 (或输入股票代码): ").strip()
+                    
+                    if idx.isdigit():
+                        idx = int(idx) - 1
+                        stock_code = list(tracker.positions.keys())[idx] if 0 <= idx < len(tracker.positions) else None
+                    else:
+                        stock_code = idx
+                    
+                    if stock_code and stock_code in tracker.positions:
+                        confirm = input(f"确认删除 {tracker.positions[stock_code].stock_name}? (y/n): ").strip().lower()
+                        if confirm == 'y':
+                            try:
+                                tracker.manual_delete_position(stock_code)
+                                print_success("持仓已删除！")
+                            except Exception as e:
+                                print_error(f"删除失败: {e}")
+                    else:
+                        print_error("无效的选择")
+                        
+            elif sub_choice == '4':
+                print(f"\n{Color.BOLD}设置现金{Color.ENDC}")
+                print(f"当前现金: ¥{tracker.cash:,.2f}")
+                new_cash = input("输入新的现金金额: ").strip()
+                if new_cash:
+                    try:
+                        tracker.manual_set_cash(float(new_cash))
+                        print_success("现金已更新！")
+                    except Exception as e:
+                        print_error(f"设置失败: {e}")
+                        
+            elif sub_choice == '5':
+                print(f"\n{Color.BOLD}清空所有持仓{Color.ENDC}")
+                print_warning(f"当前有 {len(tracker.positions)} 只持仓")
+                confirm = input("确认清空所有持仓? (y/n): ").strip().lower()
+                if confirm == 'y':
+                    tracker.clear_all_positions()
+                    print_success("所有持仓已清空！")
+                    
+            elif sub_choice == '6':
+                print(f"\n{Color.BOLD}当前持仓{Color.ENDC}")
+                if not tracker.positions:
+                    print_warning("当前无持仓")
+                else:
+                    print(f"现金: ¥{tracker.cash:,.2f}")
+                    print(f"持仓市值: ¥{tracker.portfolio_value:,.2f}")
+                    print(f"总资产: ¥{tracker.total_assets:,.2f}")
+                    print()
+                    for code, pos in tracker.positions.items():
+                        profit_color = Color.OKGREEN if pos.profit_loss_pct > 0 else Color.FAIL
+                        print(f"  {pos.stock_name}({code}): {pos.quantity}股")
+                        print(f"    成本: {pos.avg_price:.2f} → 当前: {pos.current_price:.2f}")
+                        print(f"    盈亏: {profit_color}{pos.profit_loss_pct:.2f}%{Color.ENDC}")
     except Exception as e:
         print_error(f"持仓管理启动失败: {e}")
         import traceback
