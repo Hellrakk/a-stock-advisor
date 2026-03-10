@@ -70,9 +70,10 @@ def fetch_real_stock_data_from_akshare(n_stocks=500, days=365):
                 )
                 
                 if df is not None and len(df) > 0:
-                    df.columns = ['date', 'open', 'close', 'high', 'low', 'volume', 'amount', 
-                                  'change_pct', 'change_amount', 'turnover']
-                    
+                    # AKShare返回12列：日期、股票代码、开盘、收盘、最高、最低、成交量、成交额、振幅、涨跌幅、涨跌额、换手率
+                    df.columns = ['date', 'stock_code_api', 'open', 'close', 'high', 'low',
+                                  'volume', 'amount', 'amplitude', 'change_pct', 'change_amount', 'turnover']
+
                     df['stock_code'] = stock_code
                     df['stock_name'] = stock_name
                     df['date'] = pd.to_datetime(df['date'])
