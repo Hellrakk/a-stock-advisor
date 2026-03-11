@@ -9,6 +9,10 @@ A股量化系统 - 主控脚本
 5. 回测验证
 6. 持仓管理
 7. 报告生成与推送
+
+⚠️ 质量门控（2026-03-10新增）
+- 因子平均IC < 0.02 → 暂停推送，触发诊断
+- 有效因子数 < 5 → 降级推送，标注警告
 """
 
 import sys
@@ -149,17 +153,29 @@ class EnhancedFactorEvaluator:
     def load_data(self) -> pd.DataFrame:
         """加载数据"""
         if os.path.exists(self.data_file):
-            with open(self.data_file, 'rb') as f:
-                return pickle.load(f)
+            try:
+                with open(self.data_file, 'rb') as f:
+                    return pickle.load(f)
+            except:
+                pass
+        backup_file = 'data/real_stock_data.pkl'
+        if os.path.exists(backup_file):
+            try:
+                with open(backup_file, 'rb') as f:
+                    return pickle.load(f)
+            except:
+                pass
         return pd.DataFrame()
     
     def calculate_returns(self, df: pd.DataFrame) -> pd.DataFrame:
         """计算收益率"""
         df = df.copy()
-        # 使用实际数据中的列名
         if 'date' in df.columns:
             df = df.sort_values(['stock_code', 'date'])
+            # 主要使用5日收益
             df['return_1d'] = df.groupby('stock_code')['close'].pct_change().shift(-1)
+            df['return_5d'] = df.groupby('stock_code')['close'].pct_change(5).shift(-5)
+            df['return_target'] = df['return_5d']  # 默认使用5日收益
         return df
     
     def calculate_ic(self, factor_series: pd.Series, return_series: pd.Series) -> float:
@@ -181,13 +197,43 @@ class EnhancedFactorEvaluator:
         """评估所有因子"""
         df = self.calculate_returns(df)
         
-        # 使用实际数据中存在的因子列
-        factor_list = [
+        # 基础因子
+        base_factors = [
             'momentum_5', 'momentum_10', 'momentum_20', 'momentum_60',
             'volatility_5', 'volatility_10', 'volatility_20',
             'turnover', 'amount', 'change_pct',
             'price_to_ma20', 'price_to_ma60'
         ]
+        
+        # 高级因子（来自advanced_factor_system）
+        advanced_factors = [
+            'rel_momentum', 'rel_industry_momentum', 'industry_rank', 'market_rank',
+            'industry_strength', 'vol_change', 'vol_ma_ratio', 'vol_price_trend',
+            'downside_vol', 'reversal_5', 'reversal_10', 'price_position',
+            'ml_score', 'final_score'
+        ]
+        
+        # 增强因子（来自enhanced_factor_system v4.0）
+        enhanced_factors = [
+            # 质量因子
+            'earnings_stability', 'downside_risk_inv', 'drawdown_recovery',
+            'vol_quality', 'vol_stability', 'sharpe_proxy',
+            # 成长因子
+            'momentum_accel', 'momentum_accel_2', 'ma_slope_20', 'ma_slope_60',
+            'price_above_ma20', 'price_above_ma60', 'price_position_20', 'price_position_60',
+            'breakout_20', 'breakout_60', 'vol_trend_short', 'vol_trend_long',
+            'rel_strength_ma60',
+            # 情绪因子
+            'turnover_zscore', 'turnover_abnormal', 'amount_zscore', 'amount_rel_change',
+            'amplitude_rel', 'consec_up', 'consec_down',
+            # 横截面因子
+            'momentum_20_rank', 'volatility_rank', 'amount_rank',
+            'excess_ret_market', 'excess_ret_industry',
+            # ML得分
+            'ml_score_return_5d'
+        ]
+        
+        factor_list = base_factors + advanced_factors + enhanced_factors
         available_factors = [f for f in factor_list if f in df.columns]
         
         results = {}
@@ -195,8 +241,10 @@ class EnhancedFactorEvaluator:
             if 'date' in df.columns:
                 ic_values = []
                 for date, group in df.groupby('date'):
-                    if factor in group.columns and 'return_1d' in group.columns:
-                        ic = self.calculate_ic(group[factor], group['return_1d'])
+                    # 使用return_target（5日收益）
+                    target_col = 'return_target' if 'return_target' in group.columns else 'return_1d'
+                    if factor in group.columns and target_col in group.columns:
+                        ic = self.calculate_ic(group[factor], group[target_col])
                         if not pd.isna(ic):
                             ic_values.append(ic)
                 
@@ -502,7 +550,36 @@ class EnhancedReportGenerator:
     """增强型报告生成器"""
     
     def __init__(self):
-        pass
+        self.stock_prices = self._load_stock_prices()
+    
+    def _load_stock_prices(self) -> Dict:
+        """加载股票价格数据"""
+        prices = {}
+        price_file = 'data/latest_realtime_data.pkl'
+        if os.path.exists(price_file):
+            try:
+                import pickle
+                with open(price_file, 'rb') as f:
+                    df = pickle.load(f)
+                if hasattr(df, 'iterrows'):
+                    for _, row in df.iterrows():
+                        code = str(row.get('stock_code', ''))
+                        close = row.get('close', 0)
+                        if code and close > 0:
+                            prices[code] = float(close)
+            except:
+                pass
+        return prices
+    
+    def _get_stock_price(self, stock_code: str) -> float:
+        """获取股票价格"""
+        if stock_code in self.stock_prices:
+            return self.stock_prices[stock_code]
+        code_num = stock_code.replace('sh', '').replace('sz', '').replace('bj', '')
+        for code, price in self.stock_prices.items():
+            if code_num in code:
+                return price
+        return 0.0
     
     def generate_full_report(self, 
                             selected_stocks: List[Dict],
@@ -518,12 +595,24 @@ class EnhancedReportGenerator:
         lines.append('🦞 A股量化日报 - 盘前推送（增强版）')
         lines.append('━━━━━━━━━━━━━━━━━━━━━━━━')
         lines.append(f'📅 推送时间: {now.strftime("%Y-%m-%d %H:%M")}')
-        lines.append(f'📌 类型: 实盘推送（含因子评估、回验证）')
+        lines.append(f'📌 类型: 实盘推送（含因子评估、风险控制）')
         lines.append('')
         
         lines.append('📊 因子有效性评估')
         lines.append('────────────────────')
         if factor_evaluation:
+            effective_count = sum(1 for f in factor_evaluation.values() if f.get('effective', False))
+            total_count = len(factor_evaluation)
+            avg_ic = np.mean([f['ic_mean'] for f in factor_evaluation.values()]) if factor_evaluation else 0
+            
+            if effective_count == 0 or abs(avg_ic) < 0.02:
+                lines.append('🔴 警告: 当前因子有效性极低！')
+                lines.append(f'   有效因子: {effective_count}/{total_count}')
+                lines.append(f'   平均IC: {avg_ic:.4f} (建议>0.02)')
+                lines.append('   建议: 谨慎参考选股结果，降低仓位')
+            else:
+                lines.append(f'✅ 有效因子: {effective_count}/{total_count}')
+            
             for factor, result in sorted(factor_evaluation.items(), 
                                          key=lambda x: abs(x[1]['ic_mean']), reverse=True)[:6]:
                 status = '✅' if result['effective'] else '⚠️'
@@ -541,16 +630,31 @@ class EnhancedReportGenerator:
             lines.append('使用默认等权')
         lines.append('')
         
-        lines.append('🎯 今日推荐（附回测身份证）')
+        lines.append('🎯 今日推荐')
         lines.append('────────────────────')
+        
+        stock_name_map = {}
+        if os.path.exists('data/stock_name_mapping.json'):
+            try:
+                with open('data/stock_name_mapping.json', 'r', encoding='utf-8') as f:
+                    stock_name_map = json.load(f)
+            except:
+                pass
+        
         for i, stock in enumerate(selected_stocks[:10], 1):
             code = stock.get('stock_code', stock.get('code', 'N/A'))
             name = stock.get('stock_name', stock.get('name', 'N/A'))
             score = stock.get('score', stock.get('alpha_score', 0))
             
-            backtest = backtest_results.get(str(code), {})
+            if name.startswith('股票') or name == 'N/A':
+                code_num = code.replace('sh', '').replace('sz', '').replace('bj', '')
+                name = stock_name_map.get(code_num, name)
             
-            lines.append(f'{i}. {name}({code}) - α得分: {score:.2f}')
+            price = self._get_stock_price(code)
+            price_str = f'¥{price:.2f}' if price > 0 else '价格未知'
+            
+            lines.append(f'{i}. {name}({code}) - α得分: {score:.2f} | {price_str}')
+            backtest = backtest_results.get(str(code), {})
             if backtest:
                 lines.append(f'   📈 回测: 收益{backtest.get("total_return_pct", 0):.1f}% | '
                             f'夏普{backtest.get("sharpe_ratio", 0):.2f} | '
@@ -588,10 +692,112 @@ class EnhancedReportGenerator:
                 emoji = '🛑' if signal['type'] == 'stop_loss' else '🟢'
                 lines.append(f'{emoji} {signal["stock_name"]}({signal["stock_code"]}): {signal["reason"]}')
             lines.append('')
+            
+            lines.append('📢 今日交易指令')
+            lines.append('────────────────────')
+            lines.append('【卖出指令】')
+            sell_amount = 0
+            for signal in risk_signals:
+                if signal['type'] == 'stop_loss':
+                    pos_info = next((p for p in positions if p['stock_code'] == signal['stock_code']), None)
+                    if pos_info:
+                        shares = pos_info.get('quantity', 0)
+                        price = pos_info.get('current_price', 0)
+                        amount = shares * price
+                        sell_amount += amount
+                        lines.append(f'🔴 {signal["stock_name"]}({signal["stock_code"]})')
+                        lines.append(f'   操作: 清仓卖出 {shares:.0f}股')
+                        lines.append(f'   参考价: ¥{price:.2f}')
+                        lines.append(f'   预计金额: ¥{amount:,.0f}')
+                        lines.append(f'   执行时间: 9:25-9:35 集合竞价')
+                        lines.append('')
+                elif signal['type'] == 'take_profit':
+                    pos_info = next((p for p in positions if p['stock_code'] == signal['stock_code']), None)
+                    if pos_info:
+                        shares = int(pos_info.get('quantity', 0) / 2)
+                        price = pos_info.get('current_price', 0)
+                        amount = shares * price
+                        sell_amount += amount
+                        lines.append(f'🟢 {signal["stock_name"]}({signal["stock_code"]})')
+                        lines.append(f'   操作: 减仓卖出 {shares:.0f}股（一半）')
+                        lines.append(f'   参考价: ¥{price:.2f}')
+                        lines.append(f'   预计金额: ¥{amount:,.0f}')
+                        lines.append(f'   执行时间: 9:30-10:00 分批卖出')
+                        lines.append('')
+            
+            lines.append(f'💰 预计回笼资金: ¥{sell_amount:,.0f}')
+            lines.append('')
+            
+            lines.append('【资金配置建议】')
+            lines.append('────────────────────')
+            cash_after = portfolio.get('cash', 0) + sell_amount
+            lines.append(f'操作后现金: ¥{cash_after:,.0f}')
+            lines.append('')
+            
+            lines.append('【买入指令】')
+            if selected_stocks:
+                industries = {}
+                for i, stock in enumerate(selected_stocks[:5], 1):
+                    code = stock.get('stock_code', 'N/A')
+                    name = stock.get('stock_name', 'N/A')
+                    if name.startswith('股票') or name == 'N/A':
+                        code_num = code.replace('sh', '').replace('sz', '').replace('bj', '')
+                        name = stock_name_map.get(code_num, name)
+                    
+                    price = self._get_stock_price(code)
+                    alloc_amount = cash_after * 0.12
+                    
+                    if price > 0:
+                        estimated_shares = int(alloc_amount / price / 100) * 100
+                        actual_amount = estimated_shares * price
+                    else:
+                        estimated_shares = 0
+                        actual_amount = alloc_amount
+                        lines.append(f'   ⚠️ 无法获取价格，请手动确认')
+                    
+                    lines.append(f'{i}. {name}({code})')
+                    if price > 0:
+                        lines.append(f'   建议买入: {estimated_shares}股 @ ¥{price:.2f}')
+                        lines.append(f'   预计金额: ¥{actual_amount:,.0f}')
+                    else:
+                        lines.append(f'   建议买入金额: ¥{alloc_amount:,.0f}')
+                    lines.append(f'   仓位占比: 12%')
+                    lines.append(f'   执行时间: 10:00-11:30 分批买入')
+                    lines.append('')
+                
+                total_buy = cash_after * 0.12 * 5
+                remaining_cash = cash_after - total_buy
+                lines.append(f'💰 预计使用资金: ¥{total_buy:,.0f}')
+                lines.append(f'💰 剩余现金: ¥{remaining_cash:,.0f} ({remaining_cash/cash_after*100:.0f}%)')
+                lines.append('')
+            
+            lines.append('⚠️ 执行提醒:')
+            lines.append('• 卖出优先于买入执行')
+            lines.append('• 分批买入，避免追高（可分3-5次）')
+            lines.append('• 设置止损位：买入价-8%')
+            lines.append('• 设置止盈位：买入价+15%')
+            lines.append('• 单只股票不超过总仓位12%')
+            lines.append('• 保留至少25%现金应对风险')
+            lines.append('')
+        else:
+            if positions:
+                lines.append('✅ 今日操作建议')
+                lines.append('────────────────────')
+                lines.append('• 无触发止盈止损信号')
+                lines.append('• 继续持有当前持仓')
+                lines.append('• 关注市场变化')
+                lines.append('')
+            else:
+                lines.append('📢 今日操作建议')
+                lines.append('────────────────────')
+                lines.append('• 当前无持仓，建议按今日推荐建仓')
+                lines.append('• 分批买入，每只股票10-12%仓位')
+                lines.append('• 保留25%现金应对加仓机会')
+                lines.append('')
         
         lines.append('━━━━━━━━━━━━━━━━━━━━━━')
         lines.append('📊 数据来源: AKShare + 动态因子模型')
-        lines.append(f'🦞 A股量化系统 v3.0 | {now.strftime("%Y-%m-%d")}')
+        lines.append(f'🦞 A股量化系统 v3.1 | {now.strftime("%Y-%m-%d")}')
         
         return '\n'.join(lines)
 
@@ -629,14 +835,110 @@ class DailyMaster:
             self.factor_risk_model = None
             self.factor_exposure_monitor = None
     
+    def _run_data_pipeline(self, skip_download: bool = False) -> pd.DataFrame:
+        """运行数据处理管道"""
+        try:
+            from scripts.data_pipeline import DataPipeline
+            pipeline = DataPipeline()
+            
+            if skip_download:
+                logger.info("  执行数据处理（跳过下载）...")
+                df = pipeline.process_data()
+                if df is not None:
+                    df = pipeline.calculate_advanced_factors()
+                if df is not None:
+                    _, df = pipeline.neutralize_factors()
+            else:
+                logger.info("  执行完整数据管道...")
+                df = pipeline.run_full_pipeline(download=True, stock_count=500)
+            
+            if df is not None and len(df) > 0:
+                logger.info(f"✓ 数据管道执行完成: {len(df)} 条记录")
+            return df
+            
+        except ImportError:
+            logger.warning("⚠️ 数据管道模块不可用")
+            return None
+        except Exception as e:
+            logger.error(f"❌ 数据管道执行失败: {e}")
+            return None
+    
+    def _run_advanced_factor_system(self, df: pd.DataFrame) -> pd.DataFrame:
+        """运行增强因子系统"""
+        try:
+            from scripts.enhanced_factor_system import EnhancedFactorSystem
+            
+            logger.info("🔬 运行增强因子系统 v4.0...")
+            system = EnhancedFactorSystem()
+            
+            # 计算目标收益
+            df = system.calculate_target_returns(df)
+            
+            # 计算质量因子
+            df = system.calculate_quality_factors(df)
+            
+            # 计算成长因子
+            df = system.calculate_growth_factors(df)
+            
+            # 计算情绪因子
+            df = system.calculate_sentiment_factors(df)
+            
+            # 计算横截面因子
+            df = system.calculate_cross_sectional_factors(df)
+            
+            # 训练ML模型
+            model, df, ml_metrics = system.train_ml_model(df, target='return_5d')
+            
+            # 评估因子
+            results, df = system.evaluate_all_factors(df, target='return_5d')
+            
+            # 选择最佳因子
+            best_factors = system.select_best_factors(results)
+            
+            # 计算最终得分
+            df = system.calculate_final_score(df, best_factors, results)
+            
+            # 保存更新后的数据
+            with open('data/akshare_real_data_fixed.pkl', 'wb') as f:
+                pickle.dump(df, f)
+            
+            effective_count = sum(1 for r in results.values() if r.get('effective', False))
+            logger.info(f"✓ 增强因子系统执行完成，有效因子: {effective_count}/{len(results)}")
+            
+            if ml_metrics:
+                logger.info(f"  ML模型IR: {ml_metrics.get('ir', 0):.2f}")
+            
+            return df
+            
+        except ImportError:
+            logger.warning("⚠️ 增强因子系统模块不可用")
+            return df
+        except Exception as e:
+            logger.error(f"❌ 增强因子系统执行失败: {e}")
+            return df
+    
     def load_data(self) -> pd.DataFrame:
         """加载数据"""
         logger.info("📥 加载市场数据...")
         if os.path.exists(self.data_file):
-            with open(self.data_file, 'rb') as f:
-                df = pickle.load(f)
-            logger.info(f"✓ 数据加载完成，共{len(df)}条记录")
-            return df
+            try:
+                with open(self.data_file, 'rb') as f:
+                    df = pickle.load(f)
+                logger.info(f"✓ 数据加载完成，共{len(df)}条记录")
+                return df
+            except Exception as e:
+                logger.warning(f"⚠️ pickle加载失败: {e}，尝试使用备用数据...")
+        
+        backup_file = 'data/real_stock_data.pkl'
+        if os.path.exists(backup_file):
+            try:
+                with open(backup_file, 'rb') as f:
+                    df = pickle.load(f)
+                logger.info(f"✓ 备用数据加载完成，共{len(df)}条记录")
+                return df
+            except Exception as e2:
+                logger.error(f"❌ 备用数据也加载失败: {e2}")
+        
         logger.warning("⚠️ 数据文件不存在")
         return pd.DataFrame()
     
@@ -668,9 +970,9 @@ class DailyMaster:
         
         logger.info(f"有{len(df)}只股票数据")
         
-        # 检查是否有综合得分列
+        # 检查是否有综合得分列（优先使用final_score）
         score_col = None
-        for col in ['alpha_score', 'score', '综合得分']:
+        for col in ['final_score', 'alpha_score', 'score', '综合得分']:
             if col in df.columns:
                 score_col = col
                 break
@@ -684,6 +986,9 @@ class DailyMaster:
             else:
                 logger.error("❌ 无可用排序依据")
                 return []
+        
+        if score_col == 'final_score':
+            logger.info("使用高级因子系统final_score作为排序依据")
         
         # 按股票分组去重，然后按得分排序选取前20只不同股票
         unique_stocks = df.drop_duplicates(subset=['stock_code'])
@@ -915,13 +1220,7 @@ class DailyMaster:
         
         portfolio = self.portfolio_tracker.state
         if not portfolio['positions']:
-            logger.info("📝 无持仓，执行初始建仓...")
-            for stock in selected_stocks[:5]:
-                code = stock['stock_code']
-                name = stock['stock_name']
-                price = price_dict.get(code, 10.0)
-                amount = portfolio['total_assets'] * 0.12
-                self.portfolio_tracker.execute_trade(code, name, price, amount, 'buy')
+            logger.info("📝 无持仓，推送将提供建仓建议")
         
         logger.info("✓ 持仓更新完成")
         return portfolio, risk_signals
@@ -947,7 +1246,7 @@ class DailyMaster:
             logger.error(f"❌ 报告生成失败: {e}")
             return None, None
     
-    def run(self):
+    def run(self, force_data_update: bool = False):
         """运行完整流程"""
         logger.info("\n" + "="*70)
         logger.info("🚀 A股量化系统 - 每日主控流程 v3.1")
@@ -955,17 +1254,39 @@ class DailyMaster:
         
         try:
             df = self.load_data()
+            
             if len(df) == 0:
-                logger.error("❌ 无数据，流程终止")
-                return False
+                logger.warning("⚠️ 无法加载市场数据，尝试运行数据管道...")
+                df = self._run_data_pipeline()
+                if df is None or len(df) == 0:
+                    logger.warning("⚠️ 数据管道执行失败，使用缓存数据生成推送...")
+                    return self._run_with_cached_data()
+            elif force_data_update:
+                logger.info("🔄 强制更新数据...")
+                df = self._run_data_pipeline(skip_download=True)
+            
+            # 运行高级因子系统改进因子
+            df = self._run_advanced_factor_system(df)
             
             factor_evaluation, dynamic_weights = self.evaluate_factors(df)
+            
+            effective_count = sum(1 for f in factor_evaluation.values() if f.get('effective', False))
+            avg_ic = np.mean([f['ic_mean'] for f in factor_evaluation.values()]) if factor_evaluation else 0
+            
+            if effective_count == 0 or abs(avg_ic) < 0.02:
+                logger.warning("⚠️ 质量门控触发：因子有效性不足")
+                logger.warning(f"   有效因子: {effective_count}/{len(factor_evaluation)}")
+                logger.warning(f"   平均IC: {avg_ic:.4f}")
+                logger.warning("   建议：检查数据质量或调整因子参数")
             
             dynamic_factor_weights = self.apply_dynamic_weights(df)
             if dynamic_factor_weights:
                 logger.info(f"  动态权重: {list(dynamic_factor_weights.items())[:3]}...")
             
             selected_stocks = self.select_stocks(df)
+            
+            if effective_count == 0:
+                logger.warning("⚠️ 因子无效，选股结果仅供参考")
             
             selected_stocks = self.optimize_with_ml(df, selected_stocks)
             
@@ -995,11 +1316,71 @@ class DailyMaster:
         except Exception as e:
             logger.error(f"❌ 流程执行失败: {e}", exc_info=True)
             return False
+    
+    def _run_with_cached_data(self):
+        """使用缓存数据生成推送"""
+        logger.info("📦 使用缓存数据生成推送...")
+        
+        try:
+            import json
+            
+            selection = None
+            if os.path.exists(self.selection_file):
+                with open(self.selection_file, 'r', encoding='utf-8') as f:
+                    selection = json.load(f)
+            
+            selected_stocks = selection.get('selected_stocks', []) if selection else []
+            if not selected_stocks:
+                logger.error("❌ 无缓存选股数据")
+                return False
+            
+            factor_evaluation = {}
+            if os.path.exists('data/factor_evaluation_history.json'):
+                with open('data/factor_evaluation_history.json', 'r') as f:
+                    history = json.load(f)
+                    if history:
+                        factor_evaluation = history[-1].get('evaluation', {})
+            
+            dynamic_weights = {}
+            if os.path.exists('data/factor_dynamic_weights.json'):
+                with open('data/factor_dynamic_weights.json', 'r') as f:
+                    weights_data = json.load(f)
+                    dynamic_weights = weights_data.get('weights', {})
+            
+            portfolio = self.portfolio_tracker.state
+            risk_signals = self.portfolio_tracker.check_risk_signals()
+            
+            backtest_results = {}
+            
+            report, report_file = self.generate_and_save_report(
+                selected_stocks, factor_evaluation, dynamic_weights,
+                portfolio, backtest_results, risk_signals
+            )
+            
+            if report:
+                logger.info(f"✓ 推送报告已生成: {report_file}")
+                return True
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ 缓存数据推送失败: {e}", exc_info=True)
+            return False
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description='A股量化系统主控')
+    parser.add_argument('--force-update', action='store_true', help='强制更新数据')
+    parser.add_argument('--run-pipeline', action='store_true', help='运行完整数据管道')
+    args = parser.parse_args()
+    
     master = DailyMaster()
-    success = master.run()
+    
+    if args.run_pipeline:
+        success = master.run(force_data_update=True)
+    else:
+        success = master.run(force_data_update=args.force_update)
+    
     return 0 if success else 1
 
 

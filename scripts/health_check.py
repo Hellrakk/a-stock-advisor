@@ -18,14 +18,12 @@ import json
 import subprocess
 import logging
 
-# 配置日志
+# 配置日志（由launchd重定向到文件，强制stdout）
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('../logs/health_check.log'),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True
 )
 logger = logging.getLogger(__name__)
 
@@ -47,8 +45,26 @@ class HealthChecker:
             'metadata_exists': os.path.exists(os.path.join(data_dir, 'real_stock_data_metadata.json')),
         }
 
-        overall = all(checks.values())
-        logger.info(f"  数据完整性: {'✓ 通过' if overall else '✗ 失败'}")
+        # mock_data 是可选的，不应导致健康检查失败
+        # 只有 real_stock_data 和 metadata 必须存在
+        required_checks = {
+            'real_stock_data_exists': checks['real_stock_data_exists'],
+            'metadata_exists': checks['metadata_exists'],
+        }
+
+        overall = all(required_checks.values())
+
+        # 输出详细检查结果
+        for check_name, check_result in checks.items():
+            status = '✓' if check_result else '✗'
+            logger.info(f"  {check_name}: {status}")
+
+        if not checks['mock_data_exists']:
+            logger.warning("  ⚠️  mock_data.pkl 不存在（可选文件）")
+
+        status_msg = '✓ 通过' if overall else '✗ 失败'
+        logger.info(f"  数据完整性: {status_msg}")
+
         self.results['data_integrity'] = {'status': 'pass' if overall else 'fail', 'details': checks}
 
         return overall
@@ -90,16 +106,24 @@ class HealthChecker:
 
             if len(lines) >= 2:
                 used_percent = int(lines[1].split()[-2].rstrip('%'))
-                available_gb = float(lines[1].split()[-3].rstrip('G'))
+                available_raw = lines[1].split()[3]  # 取Avail列（第3列）
+
+                # 处理单位：M、G、Mi、Gi等
+                available_clean = available_raw.rstrip('GiMiKM')  # 移除所有单位后缀
+                available_gb = float(available_clean)
+
+                # 处理单位换算
+                if 'Mi' in available_raw or 'M' in available_raw:
+                    available_gb = available_gb / 1024  # Mi/M -> Gi/G
 
                 logger.info(f"  已用: {used_percent}%")
-                logger.info(f"  可用: {available_gb}G")
+                logger.info(f"  可用: {available_gb:.2f}G")
 
                 overall = available_gb >= threshold_gb
                 logger.info(f"  磁盘空间: {'✓ 充足' if overall else '⚠️ 不足'}")
                 self.results['disk_space'] = {
                     'status': 'pass' if overall else 'warn',
-                    'details': {'used_percent': used_percent, 'available_gb': available_gb}
+                    'details': {'used_percent': used_percent, 'available_gb': round(available_gb, 2)}
                 }
                 return overall
         except Exception as e:

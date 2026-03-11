@@ -249,6 +249,15 @@ class DynamicFactorWeightSystem:
         
         return weights
     
+    def get_weights(self) -> Dict[str, float]:
+        """
+        获取当前因子权重
+        
+        Returns:
+            当前因子权重字典
+        """
+        return self.current_weights.copy() if self.current_weights else {}
+    
     def get_weight_stability(self) -> Dict:
         """
         获取权重稳定性指标
@@ -308,6 +317,44 @@ class DynamicFactorWeightSystem:
             })
         
         return pd.DataFrame(reports).sort_values('current_weight', ascending=False)
+    
+    def calculate_score(self, factor_df: pd.DataFrame) -> pd.Series:
+        """
+        计算综合得分
+        
+        Args:
+            factor_df: 因子数据 DataFrame (index: stock_code, columns: factor_names)
+            
+        Returns:
+            综合得分 Series (index: stock_code)
+        """
+        if not self.current_weights:
+            n = len(factor_df.columns)
+            weights = {f: 1.0/n for f in factor_df.columns}
+        else:
+            weights = self.current_weights
+        
+        available_factors = [f for f in weights.keys() if f in factor_df.columns]
+        
+        if not available_factors:
+            return pd.Series(0.0, index=factor_df.index)
+        
+        scores = pd.Series(0.0, index=factor_df.index)
+        
+        for factor in available_factors:
+            weight = weights[factor]
+            factor_data = factor_df[factor]
+            
+            mean = factor_data.mean()
+            std = factor_data.std()
+            if std > 0:
+                normalized_factor = (factor_data - mean) / std
+            else:
+                normalized_factor = pd.Series(0.0, index=factor_data.index)
+            
+            scores += weight * normalized_factor
+        
+        return scores
 
 
 class MultiFactorScoreModel:

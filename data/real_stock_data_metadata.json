@@ -1,23 +1,7 @@
 {
-  "source": "enhanced_simulation",
-  "start_date": "2019-01-01",
-  "end_date": "2026-03-05",
-  "min_amount": 1000000,
-  "generate_time": "2026-03-05 13:20:45",
-  "versions": [
-    {
-      "step": "generate_all_stocks",
-      "time": "2026-03-05 13:20:45",
-      "target_stocks": 500
-    },
-    {
-      "step": "process_complete",
-      "time": "2026-03-05 13:20:51",
-      "total_records": 916329,
-      "unique_stocks": 500,
-      "date_range": "2019-01-30 00:00:00 to 2026-03-05 00:00:00",
-      "trading_days": 1852
-    }
-  ],
-  "survivor_pool_dates": 10
+  "source": "akshare_real_data",
+  "switched_at": "2026-03-11 00:28:35",
+  "note": "紧急修复：切换到真实数据以解决因子IC值过低问题",
+  "original_report": "factor_diagnosis_20260311_0017.md",
+  "data_file": "akshare_real_data_fixed.pkl"
 }

@@ -30,9 +30,12 @@ try:
     from portfolio_monitor import PortfolioMonitor
     from market_monitor import MarketMonitor
     from enhanced_monitor import EnhancedMonitor
+    from code.strategy.rebalance_strategy import RebalanceStrategy
+    from code.portfolio.portfolio_tracker import PortfolioTracker
     MONITORS_AVAILABLE = True
     QUALITY_CONTROL_AVAILABLE = True
     ENHANCED_MONITOR_AVAILABLE = True
+    REBALANCE_AVAILABLE = True
     logger = logging.getLogger(__name__)
     logger.info("监控和质量控制模块导入成功")
 except Exception as e:
@@ -41,6 +44,7 @@ except Exception as e:
     MONITORS_AVAILABLE = False
     QUALITY_CONTROL_AVAILABLE = False
     ENHANCED_MONITOR_AVAILABLE = False
+    REBALANCE_AVAILABLE = False
 
 # 配置日志
 logging.basicConfig(
@@ -206,16 +210,63 @@ class UnifiedDailyPusher:
             logger.error(f"生成选股结果失败: {e}", exc_info=True)
 
 
-    def _load_rebalance_plan(self):
-        """加载换仓计划"""
+    def _load_rebalance_plan(self, stock_data=None):
+        """加载或生成换仓计划"""
         rebalance_file = 'data/rebalance_plan.json'
+        
         if os.path.exists(rebalance_file):
             try:
                 with open(rebalance_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    plan = json.load(f)
+                    if plan and plan.get('date') == datetime.now().strftime('%Y-%m-%d'):
+                        return plan
             except:
                 pass
+        
+        if REBALANCE_AVAILABLE and stock_data is not None:
+            return self._generate_rebalance_plan(stock_data)
+        
         return None
+    
+    def _generate_rebalance_plan(self, stock_data):
+        """生成换仓计划"""
+        try:
+            portfolio_tracker = PortfolioTracker()
+            
+            if not portfolio_tracker.positions:
+                logger.info("当前无持仓，无需生成换仓计划")
+                return None
+            
+            rebalance_strategy = RebalanceStrategy()
+            
+            alpha_scores = pd.Series()
+            for stock_code, position in portfolio_tracker.positions.items():
+                alpha_scores[stock_code] = position.alpha_score if position.alpha_score > 0 else 0.5
+            
+            plan = rebalance_strategy.evaluate_rebalance(
+                portfolio_tracker=portfolio_tracker,
+                stock_data=stock_data,
+                alpha_scores=alpha_scores,
+                market_volatility=0.15,
+                market_trend='neutral'
+            )
+            
+            plan_dict = {
+                'date': plan.date,
+                'actions': plan.actions,
+                'summary': plan.summary
+            }
+            
+            os.makedirs('data', exist_ok=True)
+            with open('data/rebalance_plan.json', 'w', encoding='utf-8') as f:
+                json.dump(plan_dict, f, ensure_ascii=False, indent=2, default=str)
+            
+            logger.info(f"换仓计划已生成: {len(plan.actions)}个操作")
+            return plan_dict
+            
+        except Exception as e:
+            logger.error(f"生成换仓计划失败: {e}", exc_info=True)
+            return None
     
     def _generate_executable_trade_list(self, selection, stock_data=None, total_capital=1000000):
         """

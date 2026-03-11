@@ -10,7 +10,6 @@ import sys
 import os
 from pathlib import Path
 
-# 添加项目根目录到路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
@@ -21,6 +20,23 @@ import pandas as pd
 import numpy as np
 import json
 from concurrent.futures import ProcessPoolExecutor
+
+
+class NumpyEncoder(json.JSONEncoder):
+    """自定义JSON编码器，处理numpy和pandas类型"""
+    
+    def default(self, obj):
+        if isinstance(obj, (np.integer, np.int64, np.int32)):
+            return int(obj)
+        elif isinstance(obj, (np.floating, np.float64, np.float32)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, pd.Timestamp):
+            return obj.strftime('%Y-%m-%d')
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 
 # 配置日志
 logging.basicConfig(
@@ -293,7 +309,7 @@ class FactorBacktester:
                 'timestamp': datetime.now().isoformat(),
                 'report_type': report_type,
                 'results': results
-            }, f, indent=2)
+            }, f, indent=2, cls=NumpyEncoder)
         
         logger.info(f"\n✓ 回测报告已保存: {report_path}")
 

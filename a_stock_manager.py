@@ -213,6 +213,62 @@ def run_script(script_name, description="", return_result=False):
         print_error(f"执行失败: {e}")
         return False
 
+def run_enhanced_factor_system(data_file=None):
+    """运行增强因子系统"""
+    print_info("正在运行增强因子系统...")
+    
+    if data_file is None:
+        data_file = project_root / 'data' / 'akshare_real_data_fixed.pkl'
+    
+    try:
+        import pickle
+        import pandas as pd
+        
+        if not Path(data_file).exists():
+            print_error(f"数据文件不存在: {data_file}")
+            return False
+        
+        with open(data_file, 'rb') as f:
+            df = pickle.load(f)
+        
+        print_info(f"加载数据: {len(df)} 条记录")
+        
+        from scripts.enhanced_factor_system import EnhancedFactorSystem
+        
+        system = EnhancedFactorSystem()
+        
+        df = system.calculate_target_returns(df)
+        df = system.calculate_quality_factors(df)
+        df = system.calculate_growth_factors(df)
+        df = system.calculate_sentiment_factors(df)
+        df = system.calculate_cross_sectional_factors(df)
+        
+        model, df, ml_metrics = system.train_ml_model(df, target='return_5d')
+        results, df = system.evaluate_all_factors(df, target='return_5d')
+        best_factors = system.select_best_factors(results)
+        df = system.calculate_final_score(df, best_factors, results)
+        
+        with open(data_file, 'wb') as f:
+            pickle.dump(df, f)
+        
+        effective_count = sum(1 for r in results.values() if r.get('effective', False))
+        print_success(f"增强因子系统完成，有效因子: {effective_count}/{len(results)}")
+        
+        if ml_metrics and ml_metrics.get('ir', 0) > 0.3:
+            print_success(f"ML模型IR: {ml_metrics['ir']:.2f}")
+        
+        return True
+        
+    except ImportError as e:
+        print_warning(f"增强因子系统模块不可用: {e}")
+        print_info("跳过因子计算，使用原始数据")
+        return False
+    except Exception as e:
+        print_error(f"增强因子系统执行失败: {e}")
+        import traceback
+        print_error(traceback.format_exc())
+        return False
+
 # ==================== 一级菜单：数据工程 ====================
 
 def data_engineering_menu():
@@ -262,22 +318,38 @@ def data_update():
     print("  数据更新用于获取最新的股票市场数据")
     print("  • 支持多种数据源：AKShare、BaoStock")
     print("  • 自动计算技术因子指标")
+    print("  • 自动运行增强因子系统")
     print("  • 支持增量更新")
     
     print("\n选择数据更新方式：")
     print("1. 使用真实数据源（AKShare/BaoStock）⭐推荐")
     print("2. 使用本地模拟数据（仅测试用）")
     print("3. 从AKShare在线获取（需要网络）")
+    print("4. 仅重新计算因子（不更新数据）⭐新增")
     print("0. 返回")
     
-    choice = input("\n请选择 (0-3): ").strip()
+    choice = input("\n请选择 (0-4): ").strip()
     
     if choice == '1':
-        return fetch_real_data()
+        result = fetch_real_data()
+        if result:
+            print_info("数据更新完成，正在运行增强因子系统...")
+            run_enhanced_factor_system()
+        return result
     elif choice == '2':
-        return run_script('data_update_v3.py', "使用本地模拟数据")
+        result = run_script('data_update_v3.py', "使用本地模拟数据")
+        if result:
+            print_info("数据更新完成，正在运行增强因子系统...")
+            run_enhanced_factor_system()
+        return result
     elif choice == '3':
-        return run_script('data_update_v2.py', "从AKShare在线获取数据")
+        result = run_script('data_update_v2.py', "从AKShare在线获取数据")
+        if result:
+            print_info("数据更新完成，正在运行增强因子系统...")
+            run_enhanced_factor_system()
+        return result
+    elif choice == '4':
+        return run_enhanced_factor_system()
 
 def fetch_real_data():
     """获取真实数据"""
@@ -1604,7 +1676,7 @@ def rolling_performance():
     print_info("功能：分析策略在不同时间窗口的表现")
     
     try:
-        from code.backtest.rolling_performance import RollingPerformanceAnalyzer
+        from code.backtest.rolling_performance import RollingPerformanceAnalyzer, RollingConfig
         
         print("\n滚动分析指标：")
         print("  • 滚动收益率")
@@ -1622,7 +1694,8 @@ def rolling_performance():
         
         if choice == '1':
             print_info("运行滚动性能分析...")
-            analyzer = RollingPerformanceAnalyzer(window=252)
+            config = RollingConfig(window=252)
+            analyzer = RollingPerformanceAnalyzer(config=config)
             print_info("需要准备净值序列数据")
         elif choice == '2':
             print_info("查看分析结果...")
@@ -1654,7 +1727,8 @@ def stress_test():
         
         if choice == '1':
             print_info("运行压力测试...")
-            tester = StressTester()
+            data_path = project_root / 'data' / 'akshare_real_data_fixed.pkl'
+            tester = StressTester(str(data_path))
             print_info("需要准备当前持仓数据")
         elif choice == '2':
             print_info("查看测试结果...")
@@ -1686,7 +1760,8 @@ def overfitting_detection():
         
         if choice == '1':
             print_info("运行过拟合检测...")
-            detector = OverfittingDetector()
+            data_path = project_root / 'data' / 'akshare_real_data_fixed.pkl'
+            detector = OverfittingDetector(str(data_path))
             print_info("需要准备策略回测结果")
         elif choice == '2':
             print_info("查看检测结果...")
@@ -1811,7 +1886,7 @@ def push_system():
     print_header("推送系统")
     
     print(f"\n{Color.BOLD}【功能说明】{Color.ENDC}")
-    print("  统一的推送管理入口，支持盘前、日报、模拟交易等多种推送类型")
+    print("  统一的推送管理入口，使用 daily_master.py 作为主控脚本")
     print("  • 盘前推送：工作日8:00，包含选股建议、因子评估、持仓状态")
     print("  • 日报推送：工作日18:30，包含当日表现、风险分析、市场总结")
     print("  • 模拟交易推送：实时推送模拟交易信号")
@@ -1821,17 +1896,16 @@ def push_system():
     print("2. 日报推送（工作日18:30）⭐推荐")
     print("3. 模拟交易推送")
     print("4. 推送监控系统")
-    print("5. 启动早盘推送守护进程（后台运行）")
     print("0. 返回")
     
-    choice = input("\n请选择 (0-5): ").strip()
+    choice = input("\n请选择 (0-4): ").strip()
     
     if choice == '1':
         print_info("执行盘前推送...")
-        script_path = scripts_dir / 'unified_daily_push.py'
+        script_path = scripts_dir / 'daily_master.py'
         try:
             result = subprocess.run(
-                [sys.executable, str(script_path), '--type', 'morning'],
+                [sys.executable, str(script_path)],
                 cwd=project_root,
                 capture_output=True,
                 text=True
@@ -1847,10 +1921,10 @@ def push_system():
             
     elif choice == '2':
         print_info("执行日报推送...")
-        script_path = scripts_dir / 'unified_daily_push.py'
+        script_path = scripts_dir / 'daily_master.py'
         try:
             result = subprocess.run(
-                [sys.executable, str(script_path), '--type', 'evening'],
+                [sys.executable, str(script_path)],
                 cwd=project_root,
                 capture_output=True,
                 text=True
@@ -1869,11 +1943,6 @@ def push_system():
         
     elif choice == '4':
         return run_script('push_monitor.py', "推送监控系统")
-        
-    elif choice == '5':
-        print_warning("注意：守护进程将在后台持续运行")
-        print_info("启动早盘推送守护进程...")
-        return run_script('morning_push_daemon.py', "早盘推送守护进程")
 
 def position_management():
     """持仓管理"""
@@ -3257,6 +3326,9 @@ def data_quality_check():
                             pickle.dump(cleaned_data, f)
                         print_success(f"修复完成，已保存到: {output_path}")
                         
+                        print_info("正在重新计算增强因子...")
+                        run_enhanced_factor_system(output_path)
+                        
                     elif fix_choice == '2':
                         print_info("详细问题列表:")
                         report_file = project_root / 'data' / 'akshare_real_data_quality_report.json'
@@ -3270,7 +3342,11 @@ def data_quality_check():
                             print_warning("未找到详细报告文件")
                             
                     elif fix_choice == '3':
-                        return run_script('fix_data_quality_v2.py', "数据质量修复")
+                        result = run_script('fix_data_quality_v2.py', "数据质量修复")
+                        if result:
+                            print_info("正在重新计算增强因子...")
+                            run_enhanced_factor_system()
+                        return result
             else:
                 print_error(f"数据文件不存在: {data_file}")
                 
@@ -3318,8 +3394,15 @@ def data_quality_check():
                         with open(output_path, 'wb') as f:
                             pickle.dump(cleaned_data, f)
                         print_success(f"清洗完成，已保存到: {output_path}")
+                        
+                        print_info("正在重新计算增强因子...")
+                        run_enhanced_factor_system(output_path)
                     elif fix_choice == '3':
-                        return run_script('fix_data_quality_v2.py', "数据质量修复")
+                        result = run_script('fix_data_quality_v2.py', "数据质量修复")
+                        if result:
+                            print_info("正在重新计算增强因子...")
+                            run_enhanced_factor_system()
+                        return result
             else:
                 print_error(f"数据文件不存在: {data_file}")
                 

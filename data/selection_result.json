@@ -2,144 +2,144 @@
   "selected_stocks": [
     {
       "rank": 1,
-      "stock_code": "sh688802",
-      "stock_name": "沐曦股份",
+      "stock_code": "000537",
+      "stock_name": "绿发电力",
       "score": 1.0,
-      "industry": "未知"
+      "industry": "制造"
     },
     {
       "rank": 2,
-      "stock_code": "sh688809",
-      "stock_name": "强一股份",
-      "score": 0.8975,
-      "industry": "未知"
+      "stock_code": "002281",
+      "stock_name": "光迅科技",
+      "score": 0.7343,
+      "industry": "制造"
     },
     {
       "rank": 3,
-      "stock_code": "sz300857",
-      "stock_name": "协创数据",
-      "score": 0.88,
-      "industry": "未知"
+      "stock_code": "600977",
+      "stock_name": "中国电影",
+      "score": 0.7283,
+      "industry": "工业"
     },
     {
       "rank": 4,
-      "stock_code": "sh688008",
-      "stock_name": "澜起科技",
-      "score": 0.8442,
-      "industry": "未知"
+      "stock_code": "300251",
+      "stock_name": "光线传媒",
+      "score": 0.6934,
+      "industry": "科技"
     },
     {
       "rank": 5,
-      "stock_code": "sz001309",
-      "stock_name": "德明利",
-      "score": 0.8388,
-      "industry": "未知"
+      "stock_code": "688223",
+      "stock_name": "晶科能源",
+      "score": 0.6345,
+      "industry": "工业"
     },
     {
       "rank": 6,
-      "stock_code": "sz002916",
-      "stock_name": "深南电路",
-      "score": 0.7077,
-      "industry": "未知"
+      "stock_code": "300623",
+      "stock_name": "捷捷微电",
+      "score": 0.6286,
+      "industry": "科技"
     },
     {
       "rank": 7,
-      "stock_code": "sh688279",
-      "stock_name": "峰岹科技",
-      "score": 0.6658,
-      "industry": "未知"
+      "stock_code": "002739",
+      "stock_name": "万达电影",
+      "score": 0.6268,
+      "industry": "制造"
     },
     {
       "rank": 8,
-      "stock_code": "sh688795",
-      "stock_name": "摩尔线程",
-      "score": 0.6023,
-      "industry": "未知"
+      "stock_code": "688561",
+      "stock_name": "奇安信",
+      "score": 0.6092,
+      "industry": "工业"
     },
     {
       "rank": 9,
-      "stock_code": "sh688775",
-      "stock_name": "影石创新",
-      "score": 0.5967,
-      "industry": "未知"
+      "stock_code": "300316",
+      "stock_name": "晶盛机电",
+      "score": 0.5992,
+      "industry": "科技"
     },
     {
       "rank": 10,
-      "stock_code": "sh688667",
-      "stock_name": "菱电电控",
-      "score": 0.5552,
-      "industry": "未知"
+      "stock_code": "300454",
+      "stock_name": "深信服",
+      "score": 0.5943,
+      "industry": "科技"
     },
     {
       "rank": 11,
-      "stock_code": "sz301225",
-      "stock_name": "恒勃股份",
-      "score": 0.5458,
-      "industry": "未知"
+      "stock_code": "300394",
+      "stock_name": "天孚通信",
+      "score": 0.5885,
+      "industry": "科技"
     },
     {
       "rank": 12,
-      "stock_code": "sh688717",
-      "stock_name": "艾罗能源",
-      "score": 0.5245,
-      "industry": "未知"
+      "stock_code": "300383",
+      "stock_name": "光环新网",
+      "score": 0.5828,
+      "industry": "科技"
     },
     {
       "rank": 13,
-      "stock_code": "sh603444",
-      "stock_name": "吉比特",
-      "score": 0.5063,
-      "industry": "未知"
+      "stock_code": "300661",
+      "stock_name": "圣邦股份",
+      "score": 0.5804,
+      "industry": "科技"
     },
     {
       "rank": 14,
-      "stock_code": "sh688228",
-      "stock_name": "开普云",
-      "score": 0.5015,
-      "industry": "未知"
+      "stock_code": "300122",
+      "stock_name": "智飞生物",
+      "score": 0.5725,
+      "industry": "科技"
     },
     {
       "rank": 15,
-      "stock_code": "sz301205",
-      "stock_name": "联特科技",
-      "score": 0.5002,
-      "industry": "未知"
+      "stock_code": "300373",
+      "stock_name": "扬杰科技",
+      "score": 0.5667,
+      "industry": "科技"
     },
     {
       "rank": 16,
-      "stock_code": "sh600809",
-      "stock_name": "山西汾酒",
-      "score": 0.4934,
-      "industry": "未知"
+      "stock_code": "000596",
+      "stock_name": "古井贡酒",
+      "score": 0.5662,
+      "industry": "制造"
     },
     {
       "rank": 17,
-      "stock_code": "sh688072",
-      "stock_name": "拓荆科技",
-      "score": 0.4846,
-      "industry": "未知"
+      "stock_code": "688506",
+      "stock_name": "百利天恒",
+      "score": 0.5641,
+      "industry": "工业"
     },
     {
       "rank": 18,
-      "stock_code": "sz301345",
-      "stock_name": "涛涛车业",
-      "score": 0.4736,
-      "industry": "未知"
+      "stock_code": "601233",
+      "stock_name": "桐昆股份",
+      "score": 0.5497,
+      "industry": "工业"
     },
     {
       "rank": 19,
-      "stock_code": "sh688623",
-      "stock_name": "双元科技",
-      "score": 0.4706,
-      "industry": "未知"
+      "stock_code": "300496",
+      "stock_name": "中科创达",
+      "score": 0.5484,
+      "industry": "科技"
     },
     {
       "rank": 20,
-      "stock_code": "sz300570",
-      "stock_name": "太辰光",
-      "score": 0.4659,
-      "industry": "未知"
+      "stock_code": "688520",
+      "stock_name": "神州细胞",
+      "score": 0.5458,
+      "industry": "工业"
     }
   ],
-  "timestamp": "2026-03-05T18:30:31.500470"
+  "timestamp": "2026-03-11T02:05:50.506946"
 }

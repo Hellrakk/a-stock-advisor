@@ -402,20 +402,34 @@ class AlphaStockSelector:
         Returns:
             有效因子列表
         """
-        # 验证因子
         validation_results = self.validate_factors(data)
         
-        # 选择有效的因子
         valid_factors = [name for name, result in validation_results.items() 
                         if result['valid']]
         
         if not valid_factors:
-            # 如果没有有效因子，使用所有因子（放宽条件）
             print("⚠️ 没有通过IC/IR验证的因子，使用所有可用因子")
             valid_factors = [f.name for f in self.alpha_factors 
                            if f.name in data.columns]
         
-        print(f"✓ 使用因子: {', '.join(valid_factors)}")
+        if not valid_factors:
+            print("⚠️ 没有财务因子，使用技术因子作为替代")
+            fallback_factors = [
+                'final_score', 'ml_score', 'ml_score_return_5d',
+                'momentum_20', 'momentum_60', 'volatility_20',
+                'turnover', 'amount', 'rsi_14', 'rel_momentum',
+                'industry_rank', 'market_rank', 'trend_strength'
+            ]
+            valid_factors = [f for f in fallback_factors if f in data.columns]
+            
+            if not valid_factors:
+                numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+                exclude_cols = ['date', 'stock_code', 'open', 'close', 'high', 'low', 
+                               'volume', 'amount', 'change_pct', 'return_1d', 'return_5d',
+                               'return_10d', 'return_20d']
+                valid_factors = [c for c in numeric_cols if c not in exclude_cols][:10]
+        
+        print(f"✓ 使用因子: {', '.join(valid_factors[:10])}")
         
         return valid_factors
     
@@ -612,49 +626,49 @@ class AlphaStockSelector:
         if factor_list is None:
             factor_list = self.select_effective_factors(stock_data)
         
-        # 如果没有可用因子，返回空Series
         if not factor_list:
             return pd.Series(0.0, index=stock_data.index)
         
-        # 标准化因子
         normalized_scores = pd.Series(0.0, index=stock_data.index)
+        valid_factor_count = 0
         
         for factor_name in factor_list:
             if factor_name not in stock_data.columns:
                 continue
             
-            # 找到对应的因子定义
-            factor_def = next((f for f in self.alpha_factors if f.name == factor_name), None)
-            if factor_def is None:
-                continue
-            
             factor_data = stock_data[factor_name]
             
-            # 移除NaN
             factor_data = factor_data.fillna(factor_data.median())
             
-            # 标准化 (Z-score)
             mean = factor_data.mean()
             std = factor_data.std()
             
             if std > 0:
                 normalized = (factor_data - mean) / std
             else:
-                normalized = pd.Series(0, index=stock_data.index)
+                continue
             
-            # 根据因子方向调整得分
-            if factor_def.direction == 'negative':
+            factor_def = next((f for f in self.alpha_factors if f.name == factor_name), None)
+            
+            if factor_def is not None and factor_def.direction == 'negative':
                 normalized = -normalized
             
             normalized_scores += normalized
+            valid_factor_count += 1
         
-        # 归一化到0-100分
+        if valid_factor_count == 0:
+            return pd.Series(50.0, index=stock_data.index)
+        
+        normalized_scores = normalized_scores / valid_factor_count
+        
         if len(normalized_scores) > 0:
             min_score = normalized_scores.min()
             max_score = normalized_scores.max()
             
             if max_score > min_score:
                 normalized_scores = (normalized_scores - min_score) / (max_score - min_score) * 100
+            else:
+                normalized_scores = pd.Series(50.0, index=stock_data.index)
         
         return normalized_scores
     
@@ -890,17 +904,23 @@ class AlphaStockSelector:
 
             if len(filtered) < n:
                 print(f"⚠️ 筛选后股票数量({len(filtered)})少于选股数量({n})")
-                # 如果筛选后股票太少，放宽条件
                 if len(filtered) == 0:
-                    print("  → 放宽α得分阈值至70分")
+                    print("  → 放宽α得分阈值至60分")
                     filtered = self.filter_undervalued_high_alpha(
                         stock_data,
                         alpha_scores,
-                        alpha_threshold=70.0,
+                        alpha_threshold=60.0,
                         min_turnover=0.0,
                         max_market_cap=float('inf')
                     )
                     print(f"  → 放宽后剩余: {len(filtered)}只股票")
+                    
+                if len(filtered) == 0:
+                    print("  → 直接按α得分排序选股")
+                    sorted_idx = alpha_scores.nlargest(n).index
+                    filtered = stock_data.loc[sorted_idx].copy()
+                    filtered['alpha_score'] = alpha_scores[sorted_idx]
+                    print(f"  → 直接选股: {len(filtered)}只")
 
             stock_data = filtered
             alpha_scores = alpha_scores[filtered.index]

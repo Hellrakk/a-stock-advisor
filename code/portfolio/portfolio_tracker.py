@@ -86,6 +86,17 @@ class PortfolioTracker:
             except Exception as e:
                 print(f"⚠️ 加载持仓状态失败: {e}")
     
+    @property
+    def state(self) -> Dict:
+        """获取持仓状态"""
+        return {
+            'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'total_assets': self.total_assets,
+            'cash': self.cash,
+            'portfolio_value': self.portfolio_value,
+            'positions': [asdict(pos) for pos in self.positions.values()]
+        }
+    
     def _save_state(self):
         """保存持仓状态"""
         os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
