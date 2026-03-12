@@ -661,9 +661,11 @@ def factor_research_menu():
         print("  5. 创新实验室")
         print("  6. 技术指标验证 ⭐新增")
         print("  7. RDAgent因子挖掘 ⭐AI驱动")
+        print("  8. IC调试工具 ⭐诊断")
+        print("  9. 因子诊断 ⭐诊断")
         print("  0. 返回主菜单")
         
-        choice = input(f"\n{Color.OKCYAN}请选择 (0-7): {Color.ENDC}").strip()
+        choice = input(f"\n{Color.OKCYAN}请选择 (0-9): {Color.ENDC}").strip()
         
         if choice == '1':
             factor_mining()
@@ -679,6 +681,10 @@ def factor_research_menu():
             indicator_validation()
         elif choice == '7':
             rdagent_factor_mining()
+        elif choice == '8':
+            ic_debug_tool()
+        elif choice == '9':
+            factor_diagnosis_tool()
         elif choice == '0':
             return
         else:
@@ -1042,6 +1048,218 @@ def indicator_validation():
         import traceback
         print_error(traceback.format_exc())
 
+def ic_debug_tool():
+    """IC调试工具"""
+    print_header("IC调试工具")
+    print_info("功能：深度分析因子IC值低的原因，诊断因子有效性问题")
+    
+    print(f"\n{Color.BOLD}【调试说明】{Color.ENDC}")
+    print("  IC（信息系数）是衡量因子预测能力的核心指标")
+    print("  当IC值异常低时，需要诊断原因：")
+    print("  • 因子计算是否正确")
+    print("  • 未来收益率计算是否正确")
+    print("  • 数据是否存在问题")
+    print("  • 因子是否已失效")
+    
+    print(f"\n{Color.BOLD}【调试选项】{Color.ENDC}")
+    print("  1. 运行IC深度诊断")
+    print("  2. 检查因子计算正确性")
+    print("  3. 检查未来收益率计算")
+    print("  4. 查看因子与收益散点图")
+    print("  0. 返回")
+    
+    choice = input("\n请选择 (0-4): ").strip()
+    
+    if choice == '1':
+        print_info("运行IC深度诊断...")
+        
+        data_file = project_root / 'data' / 'akshare_real_data_fixed.pkl'
+        if not data_file.exists():
+            data_file = project_root / 'data' / 'real_stock_data.pkl'
+        
+        if not data_file.exists():
+            print_error("数据文件不存在，请先运行数据更新")
+            return
+        
+        try:
+            import pickle
+            import pandas as pd
+            import numpy as np
+            from scipy.stats import spearmanr
+            
+            print_info(f"加载数据: {data_file.name}")
+            with open(data_file, 'rb') as f:
+                df = pickle.load(f)
+            
+            print_success(f"数据加载成功: {len(df)} 条记录")
+            
+            if 'stock_code' in df.columns:
+                sample_stock = df['stock_code'].unique()[0]
+                stock_df = df[df['stock_code'] == sample_stock].sort_values('date').copy()
+            else:
+                stock_df = df.sort_index().copy()
+            
+            print_info(f"样本股票数据点: {len(stock_df)}")
+            
+            if 'close' in stock_df.columns:
+                stock_df['forward_return_5d'] = stock_df['close'].shift(-5) / stock_df['close'] - 1
+                stock_df['forward_return_5d_pct'] = stock_df['forward_return_5d'] * 100
+            
+            factor_cols = [col for col in stock_df.columns if col not in 
+                          ['date', 'stock_code', 'name', 'open', 'high', 'low', 'close',
+                           'volume', 'amount', 'change_pct', 'turnover', 'forward_return_5d', 'forward_return_5d_pct']]
+            
+            if not factor_cols:
+                print_warning("未找到因子列")
+                return
+            
+            print_info(f"发现 {len(factor_cols)} 个因子列")
+            
+            print(f"\n{Color.BOLD}【IC诊断结果】{Color.ENDC}")
+            
+            valid_factors = []
+            for factor in factor_cols[:10]:
+                if 'forward_return_5d_pct' in stock_df.columns and factor in stock_df.columns:
+                    valid_data = stock_df[[factor, 'forward_return_5d_pct']].dropna()
+                    if len(valid_data) > 30:
+                        ic, pval = spearmanr(valid_data[factor], valid_data['forward_return_5d_pct'])
+                        status = f"{Color.OKGREEN}有效{Color.ENDC}" if abs(ic) > 0.02 and pval < 0.05 else f"{Color.WARNING}弱{Color.ENDC}"
+                        print(f"  {factor}: IC={ic:.4f}, p={pval:.4f} {status}")
+                        valid_factors.append({'factor': factor, 'ic': ic, 'pval': pval})
+            
+            if valid_factors:
+                best = max(valid_factors, key=lambda x: abs(x['ic']))
+                print(f"\n{Color.BOLD}最佳因子: {best['factor']}{Color.ENDC}")
+                print(f"  IC={best['ic']:.4f}, p-value={best['pval']:.4f}")
+            
+        except Exception as e:
+            print_error(f"IC诊断失败: {e}")
+            import traceback
+            print_error(traceback.format_exc())
+    
+    elif choice == '2':
+        print_info("检查因子计算正确性...")
+        print_info("请参考 code/strategy/debug_ic.py 进行详细检查")
+    
+    elif choice == '3':
+        print_info("检查未来收益率计算...")
+        print_info("未来收益率 = (T+N日收盘价 / T日收盘价) - 1")
+        print_info("需要确保：")
+        print("  1. 使用正确的shift方向（shift(-N)表示未来N天）")
+        print("  2. 按股票分组计算，避免跨股票计算")
+    
+    elif choice == '4':
+        print_info("查看因子与收益散点图...")
+        print_info("建议使用matplotlib生成可视化图表")
+        print_info("观察：是否存在明显相关性、是否有异常值")
+
+def factor_diagnosis_tool():
+    """因子诊断工具"""
+    print_header("因子诊断工具")
+    print_info("功能：全面诊断因子有效性，计算IC、IR等指标")
+    
+    print(f"\n{Color.BOLD}【诊断说明】{Color.ENDC}")
+    print("  因子诊断用于评估因子的预测能力和有效性")
+    print("  核心指标：")
+    print("  • IC（信息系数）：因子值与未来收益的相关性")
+    print("  • IR（信息比率）：IC均值 / IC标准差")
+    print("  • p-value：统计显著性")
+    print("  • 单调性：因子分组收益是否单调")
+    
+    print(f"\n{Color.BOLD}【诊断选项】{Color.ENDC}")
+    print("  1. 运行全量因子诊断")
+    print("  2. 诊断单个因子")
+    print("  3. 查看诊断报告")
+    print("  0. 返回")
+    
+    choice = input("\n请选择 (0-3): ").strip()
+    
+    if choice == '1':
+        print_info("运行全量因子诊断...")
+        
+        data_file = project_root / 'data' / 'akshare_real_data_fixed.pkl'
+        if not data_file.exists():
+            data_file = project_root / 'data' / 'real_stock_data.pkl'
+        
+        if not data_file.exists():
+            print_error("数据文件不存在，请先运行数据更新")
+            return
+        
+        try:
+            from code.strategy.factor_diagnosis import calculate_forward_returns, calculate_ic, analyze_all_factors
+            import pickle
+            import pandas as pd
+            
+            print_info(f"加载数据: {data_file.name}")
+            with open(data_file, 'rb') as f:
+                df = pickle.load(f)
+            
+            print_success(f"数据加载成功: {len(df)} 条记录")
+            
+            print_info("计算未来收益率...")
+            returns_df = calculate_forward_returns(df)
+            df = pd.concat([df, returns_df], axis=1)
+            
+            print_info("分析所有因子...")
+            results_df = analyze_all_factors(df)
+            
+            if not results_df.empty:
+                print(f"\n{Color.BOLD}【因子诊断结果】{Color.ENDC}")
+                print(f"{'因子名称':<25} {'IC(5d)':<12} {'IR(5d)':<12} {'p-value':<12} {'评价':<10}")
+                print("-" * 75)
+                
+                for idx, row in results_df.head(15).iterrows():
+                    ic = row.get('ic_5d', 0)
+                    pval = row.get('pval_5d', 1)
+                    
+                    if abs(ic) > 0.05 and pval < 0.05:
+                        rating = f"{Color.OKGREEN}优秀{Color.ENDC}"
+                    elif abs(ic) > 0.03 and pval < 0.1:
+                        rating = f"{Color.OKCYAN}良好{Color.ENDC}"
+                    elif abs(ic) > 0.02:
+                        rating = f"{Color.WARNING}可用{Color.ENDC}"
+                    else:
+                        rating = f"{Color.FAIL}弱{Color.ENDC}"
+                    
+                    print(f"{row.get('factor', 'N/A'):<25} {ic:>8.4f}     {row.get('ir_5d', 0):>8.4f}     {pval:>8.4f}     {rating}")
+                
+                save = input("\n是否保存诊断报告? (y/n): ").strip().lower()
+                if save == 'y':
+                    output_file = project_root / 'data' / 'factor_diagnosis_report.csv'
+                    results_df.to_csv(output_file, index=False, encoding='utf-8')
+                    print_success(f"报告已保存: {output_file}")
+            else:
+                print_warning("未找到有效因子")
+                
+        except ImportError as e:
+            print_error(f"导入诊断模块失败: {e}")
+            print_info("请确保 code/strategy/factor_diagnosis.py 存在")
+        except Exception as e:
+            print_error(f"因子诊断失败: {e}")
+            import traceback
+            print_error(traceback.format_exc())
+    
+    elif choice == '2':
+        print_info("诊断单个因子...")
+        factor_name = input("请输入因子名称: ").strip()
+        if not factor_name:
+            print_error("因子名称不能为空")
+            return
+        print_info(f"诊断因子: {factor_name}")
+        print_info("请运行全量诊断后查看详细报告")
+    
+    elif choice == '3':
+        print_info("查看诊断报告...")
+        report_file = project_root / 'data' / 'factor_diagnosis_report.csv'
+        if report_file.exists():
+            import pandas as pd
+            df = pd.read_csv(report_file)
+            print(f"\n{Color.BOLD}【历史诊断报告】{Color.ENDC}")
+            print(f"  因子数量: {len(df)}")
+            print(df.head(10).to_string(index=False))
+        else:
+            print_warning("暂无诊断报告，请先运行诊断")
+
 def rdagent_factor_mining():
     """RDAgent因子挖掘"""
     print_header("RDAgent因子挖掘")
@@ -1277,9 +1495,13 @@ def strategy_development_menu():
         print("  4. 再平衡策略")
         print("  5. 强化学习优化器")
         print("  6. ML因子组合器")
+        print("  7. 绩效管理 ⭐新增")
+        print("  8. 基准模型 ⭐新增")
+        print("  9. 市场约束检查 ⭐新增")
+        print("  10. 市场微观结构 ⭐新增")
         print("  0. 返回主菜单")
         
-        choice = input(f"\n{Color.OKCYAN}请选择 (0-6): {Color.ENDC}").strip()
+        choice = input(f"\n{Color.OKCYAN}请选择 (0-10): {Color.ENDC}").strip()
         
         if choice == '1':
             multi_factor_model()
@@ -1293,6 +1515,14 @@ def strategy_development_menu():
             rl_optimizer()
         elif choice == '6':
             ml_factor_combiner()
+        elif choice == '7':
+            performance_management()
+        elif choice == '8':
+            baseline_model_tool()
+        elif choice == '9':
+            market_constraint_tool()
+        elif choice == '10':
+            market_microstructure_tool()
         elif choice == '0':
             return
         else:
@@ -1592,6 +1822,316 @@ def ml_factor_combiner():
             
     except Exception as e:
         print_error(f"ML因子组合器启动失败: {e}")
+
+def performance_management():
+    """绩效管理"""
+    print_header("绩效管理")
+    print_info("功能：管理因子、策略和指标的绩效数据")
+    
+    print(f"\n{Color.BOLD}【功能说明】{Color.ENDC}")
+    print("  绩效管理用于跟踪和评估因子、策略和指标的表现")
+    print("  • 因子绩效：IC、IR、胜率、夏普比率")
+    print("  • 策略绩效：年化收益、最大回撤、夏普比率")
+    print("  • 指标绩效：预测准确率、信号有效性")
+    
+    print(f"\n{Color.BOLD}【管理选项】{Color.ENDC}")
+    print("  1. 查看因子绩效摘要")
+    print("  2. 查看策略绩效摘要")
+    print("  3. 更新绩效数据")
+    print("  4. 生成绩效报告")
+    print("  0. 返回")
+    
+    choice = input("\n请选择 (0-4): ").strip()
+    
+    if choice == '1':
+        print_info("查看因子绩效摘要...")
+        try:
+            from code.strategy.performance_manager import PerformanceManager
+            pm = PerformanceManager()
+            summary = pm.get_factor_performance_summary()
+            if not summary.empty:
+                print(f"\n{Color.BOLD}【因子绩效摘要】{Color.ENDC}")
+                print(f"{'因子名称':<20} {'IC均值':<12} {'IR':<12} {'胜率':<12} {'夏普':<12}")
+                print("-" * 70)
+                for idx, row in summary.head(10).iterrows():
+                    print(f"{row.get('factor_name', 'N/A'):<20} {row.get('ic_mean', 0):.4f}       {row.get('ir', 0):.4f}       {row.get('win_rate', 0):.2%}       {row.get('sharpe', 0):.4f}")
+            else:
+                print_warning("暂无因子绩效数据")
+        except ImportError:
+            print_error("绩效管理模块不可用")
+        except Exception as e:
+            print_error(f"获取因子绩效失败: {e}")
+    
+    elif choice == '2':
+        print_info("查看策略绩效摘要...")
+        try:
+            from code.strategy.performance_manager import PerformanceManager
+            pm = PerformanceManager()
+            summary = pm.get_strategy_performance_summary()
+            if not summary.empty:
+                print(f"\n{Color.BOLD}【策略绩效摘要】{Color.ENDC}")
+                print(f"{'策略名称':<20} {'年化收益':<12} {'夏普':<12} {'最大回撤':<12}")
+                print("-" * 60)
+                for idx, row in summary.head(10).iterrows():
+                    print(f"{row.get('strategy_name', 'N/A'):<20} {row.get('annual_return', 0):.2%}       {row.get('sharpe', 0):.4f}       {row.get('max_drawdown', 0):.2%}")
+            else:
+                print_warning("暂无策略绩效数据")
+        except ImportError:
+            print_error("绩效管理模块不可用")
+        except Exception as e:
+            print_error(f"获取策略绩效失败: {e}")
+    
+    elif choice == '3':
+        print_info("更新绩效数据...")
+        print_info("请运行回测或因子验证后自动更新")
+    
+    elif choice == '4':
+        print_info("生成绩效报告...")
+        try:
+            from code.strategy.performance_manager import PerformanceManager
+            pm = PerformanceManager()
+            report_path = pm.generate_performance_report()
+            if report_path:
+                print_success(f"报告已生成: {report_path}")
+            else:
+                print_warning("暂无足够数据生成报告")
+        except Exception as e:
+            print_error(f"生成报告失败: {e}")
+
+def baseline_model_tool():
+    """基准模型工具"""
+    print_header("基准模型工具")
+    print_info("功能：使用简单模型建立预测基准")
+    
+    print(f"\n{Color.BOLD}【功能说明】{Color.ENDC}")
+    print("  基准模型用于建立预测基准，评估复杂模型的增量价值")
+    print("  • 线性回归：最简单的基准")
+    print("  • 逻辑回归：分类基准")
+    print("  • LightGBM：梯度提升树基准")
+    
+    print(f"\n{Color.BOLD}【模型选项】{Color.ENDC}")
+    print("  1. 训练线性回归基准")
+    print("  2. 训练逻辑回归基准")
+    print("  3. 训练LightGBM基准")
+    print("  4. 比较模型性能")
+    print("  0. 返回")
+    
+    choice = input("\n请选择 (0-4): ").strip()
+    
+    if choice in ['1', '2', '3']:
+        model_type = {'1': 'linear', '2': 'logistic', '3': 'lightgbm'}[choice]
+        print_info(f"训练{model_type}基准模型...")
+        
+        data_file = project_root / 'data' / 'akshare_real_data_fixed.pkl'
+        if not data_file.exists():
+            print_error("数据文件不存在，请先运行数据更新")
+            return
+        
+        try:
+            from code.strategy.baseline_model import BaselineModel
+            import pickle
+            import pandas as pd
+            
+            print_info(f"加载数据: {data_file.name}")
+            with open(data_file, 'rb') as f:
+                df = pickle.load(f)
+            
+            print_success(f"数据加载成功: {len(df)} 条记录")
+            
+            model = BaselineModel(model_type=model_type, n_features=10)
+            print_info(f"模型类型: {model_type}")
+            print_info(f"最大特征数: 10")
+            
+            print_info("\n基准模型已初始化")
+            print_info("请参考 code/strategy/baseline_model.py 进行训练和预测")
+            
+        except ImportError as e:
+            print_error(f"导入基准模型失败: {e}")
+        except Exception as e:
+            print_error(f"初始化失败: {e}")
+    
+    elif choice == '4':
+        print_info("比较模型性能...")
+        print_info("请先训练各模型后再进行比较")
+        print("\n比较指标：")
+        print("  • 准确率（Accuracy）")
+        print("  • 精确率（Precision）")
+        print("  • 召回率（Recall）")
+        print("  • F1分数")
+        print("  • AUC-ROC")
+
+def market_constraint_tool():
+    """市场约束检查工具"""
+    print_header("市场约束检查工具")
+    print_info("功能：检查涨跌停、停牌等交易限制")
+    
+    print(f"\n{Color.BOLD}【功能说明】{Color.ENDC}")
+    print("  市场约束检查确保回测结果更接近实际交易情况")
+    print("  • 涨跌停检查：判断是否可以买入/卖出")
+    print("  • 停牌检查：判断是否可以交易")
+    print("  • ST股票检查：特殊涨跌停限制")
+    
+    print(f"\n{Color.BOLD}【检查选项】{Color.ENDC}")
+    print("  1. 检查单只股票交易状态")
+    print("  2. 批量检查股票池")
+    print("  3. 查看约束配置")
+    print("  0. 返回")
+    
+    choice = input("\n请选择 (0-3): ").strip()
+    
+    if choice == '1':
+        print_info("检查单只股票交易状态...")
+        stock_code = input("请输入股票代码: ").strip()
+        if not stock_code:
+            print_error("股票代码不能为空")
+            return
+        
+        try:
+            from code.strategy.market_constraint import MarketConstraintChecker
+            import pickle
+            
+            data_file = project_root / 'data' / 'akshare_real_data_fixed.pkl'
+            if data_file.exists():
+                with open(data_file, 'rb') as f:
+                    df = pickle.load(f)
+                
+                if 'stock_code' in df.columns:
+                    stock_data = df[df['stock_code'] == stock_code]
+                    if len(stock_data) > 0:
+                        latest = stock_data.iloc[-1]
+                        checker = MarketConstraintChecker()
+                        status = checker.check_trading_status(latest)
+                        
+                        print(f"\n{Color.BOLD}【交易状态】{Color.ENDC}")
+                        print(f"  股票代码: {stock_code}")
+                        print(f"  交易状态: {status.value}")
+                        
+                        can_buy, buy_reason = checker.can_buy(latest)
+                        can_sell, sell_reason = checker.can_sell(latest)
+                        
+                        buy_status = f"{Color.OKGREEN}可买入{Color.ENDC}" if can_buy else f"{Color.FAIL}不可买入{Color.ENDC}"
+                        sell_status = f"{Color.OKGREEN}可卖出{Color.ENDC}" if can_sell else f"{Color.FAIL}不可卖出{Color.ENDC}"
+                        
+                        print(f"  买入状态: {buy_status} - {buy_reason}")
+                        print(f"  卖出状态: {sell_status} - {sell_reason}")
+                    else:
+                        print_warning(f"未找到股票 {stock_code} 的数据")
+            else:
+                print_error("数据文件不存在")
+                
+        except ImportError as e:
+            print_error(f"导入市场约束模块失败: {e}")
+        except Exception as e:
+            print_error(f"检查失败: {e}")
+    
+    elif choice == '2':
+        print_info("批量检查股票池...")
+        print_info("请先加载数据后进行检查")
+    
+    elif choice == '3':
+        print_info("查看约束配置...")
+        try:
+            from code.strategy.market_constraint import MarketConstraintConfig
+            config = MarketConstraintConfig()
+            print(f"\n{Color.BOLD}【约束配置】{Color.ENDC}")
+            print(f"  涨停阈值: {config.limit_up_threshold:.2%}")
+            print(f"  跌停阈值: {config.limit_down_threshold:.2%}")
+            print(f"  ST涨停阈值: {config.st_limit_up:.2%}")
+            print(f"  ST跌停阈值: {config.st_limit_down:.2%}")
+            print(f"  成交量参与率: {config.volume_participation_rate:.2%}")
+            print(f"  最小交易金额: {config.min_trading_value:,.0f}")
+        except ImportError:
+            print_error("导入约束配置失败")
+
+def market_microstructure_tool():
+    """市场微观结构工具"""
+    print_header("市场微观结构工具")
+    print_info("功能：分析订单簿、流动性、价格冲击")
+    
+    print(f"\n{Color.BOLD}【功能说明】{Color.ENDC}")
+    print("  市场微观结构模型用于分析交易成本和市场影响")
+    print("  • 订单簿建模：买卖盘深度分析")
+    print("  • 流动性分析：买卖价差、市场深度")
+    print("  • 价格冲击模型：大单交易对价格的影响")
+    print("  • 交易成本估算：滑点、冲击成本")
+    
+    print(f"\n{Color.BOLD}【分析选项】{Color.ENDC}")
+    print("  1. 订单簿分析")
+    print("  2. 流动性分析")
+    print("  3. 价格冲击估算")
+    print("  4. 交易成本估算")
+    print("  0. 返回")
+    
+    choice = input("\n请选择 (0-4): ").strip()
+    
+    if choice == '1':
+        print_info("订单簿分析...")
+        try:
+            from code.strategy.market_microstructure import OrderBook
+            
+            print_info("模拟订单簿数据...")
+            symbol = input("请输入股票代码 (默认 000001): ").strip() or "000001"
+            
+            order_book = OrderBook(symbol)
+            
+            import numpy as np
+            from datetime import datetime
+            np.random.seed(42)
+            
+            base_price = 10.0
+            bids = [(base_price - np.random.uniform(0.01, 0.1), int(np.random.uniform(1000, 10000))) for _ in range(5)]
+            asks = [(base_price + np.random.uniform(0.01, 0.1), int(np.random.uniform(1000, 10000))) for _ in range(5)]
+            
+            order_book.update(bids, asks, datetime.now())
+            
+            print(f"\n{Color.BOLD}【订单簿快照】{Color.ENDC}")
+            print(f"  股票代码: {symbol}")
+            print(f"  买一价: {order_book.get_bid_price():.2f}")
+            print(f"  卖一价: {order_book.get_ask_price():.2f}")
+            print(f"  买卖价差: {order_book.get_spread():.4f}")
+            print(f"  中间价: {order_book.get_mid_price():.2f}")
+            
+            print(f"\n{Color.BOLD}【市场深度】{Color.ENDC}")
+            bid_depth = order_book.get_market_depth('bid', depth=3)
+            ask_depth = order_book.get_market_depth('ask', depth=3)
+            
+            print("  买盘:")
+            for level, data in bid_depth.items():
+                print(f"    {level}: 价格={data['price']:.2f}, 数量={data['size']}, 累计={data['total_size']}")
+            
+            print("  卖盘:")
+            for level, data in ask_depth.items():
+                print(f"    {level}: 价格={data['price']:.2f}, 数量={data['size']}, 累计={data['total_size']}")
+            
+        except ImportError as e:
+            print_error(f"导入微观结构模块失败: {e}")
+        except Exception as e:
+            print_error(f"订单簿分析失败: {e}")
+    
+    elif choice == '2':
+        print_info("流动性分析...")
+        print_info("流动性指标：")
+        print("  • 买卖价差（Bid-Ask Spread）")
+        print("  • 市场深度（Market Depth）")
+        print("  • 成交量（Volume）")
+        print("  • 换手率（Turnover Rate）")
+    
+    elif choice == '3':
+        print_info("价格冲击估算...")
+        print_info("价格冲击模型：")
+        print("  • 线性模型：冲击 = k × 交易量 / 平均成交量")
+        print("  • 平方根模型：冲击 = k × √(交易量 / 平均成交量)")
+        print("  • 分段线性模型：区分大单和小单")
+    
+    elif choice == '4':
+        print_info("交易成本估算...")
+        print_info("交易成本组成：")
+        print("  • 佣金：约 0.03%（双边）")
+        print("  • 印花税：0.1%（卖出）")
+        print("  • 滑点：取决于流动性")
+        print("  • 冲击成本：取决于交易量")
+        print("\n估算公式：")
+        print("  总成本 = 佣金 + 印花税 + 滑点 + 冲击成本")
 
 # ==================== 一级菜单：回测验证 ====================
 
