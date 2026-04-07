@@ -17,7 +17,7 @@ def send_official_report():
     
     # 配置
     import os
-    webhook_url = os.environ.get("FEISHU_WEBHOOK_URL", "https://open.feishu.cn/open-apis/bot/v2/hook/8458c372-5747-4aa1-90e6-1a1f1e0148c1")
+    webhook_url = os.environ.get("FEISHU_WEBHOOK_URL", "")
     secret = os.environ.get("FEISHU_SECRET", "")
     
     if not secret:

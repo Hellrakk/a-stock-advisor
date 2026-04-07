@@ -36,6 +36,14 @@ config/new_crontab.txt
 .idea/
 *.swp
 *.swo
+.trae/
+
+# Archive (old code)
+archive/
+
+# Backup files
+*.backup
+*~
 
 # OS
 .DS_Store
