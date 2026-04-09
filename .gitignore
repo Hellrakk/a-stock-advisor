@@ -65,3 +65,14 @@ tmp/
 # Node.js
 node_modules/
 package-lock.json
+
+# Local-only workspace files (do not commit)
+.openclaw/
+AGENTS.md
+HEARTBEAT.md
+IDENTITY.md
+MEMORY.md
+SOUL.md
+TOOLS.md
+USER.md
+tools/
