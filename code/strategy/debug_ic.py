@@ -10,6 +10,9 @@ from scipy.stats import spearmanr
 
 
 def main():
+    from pathlib import Path
+    project_root = Path(__file__).parent.parent.parent
+    
     print("=" * 80)
     print("IC值深度调试")
     print("=" * 80)
@@ -17,7 +20,7 @@ def main():
 
     # 加载数据
     print("加载数据...")
-    with open('/Users/variya/.openclaw/workspace/projects/a-stock-advisor/data/real_stock_data.pkl', 'rb') as f:
+    with open(str(project_root / 'data' / 'real_stock_data.pkl'), 'rb') as f:
         df = pickle.load(f)
 
     # 选择一个样本股票详细检查

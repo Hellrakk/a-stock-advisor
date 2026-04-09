@@ -1,5 +1,7 @@
 # 归档文件说明
 
+⚠️ **警告**：archive/ 目录下的文件包含大量 macOS 硬编码路径（`/Users/variya/.openclaw/workspace/projects/a-stock-advisor`），是历史参考文件，不建议直接使用。如需使用，请先修正路径。
+
 ## 归档信息
 - 归档时间: 2026-03-03 02:39:42
 - 归档文件数量: 7

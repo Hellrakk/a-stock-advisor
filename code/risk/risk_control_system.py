@@ -322,8 +322,11 @@ class RiskControlSystem:
         
         return self.results
     
-    def save_report(self, output_dir: str = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor/reports'):
+    def save_report(self, output_dir: str = None):
         """保存报告"""
+        if output_dir is None:
+            from pathlib import Path
+            output_dir = str(Path(__file__).parent.parent.parent / 'reports')
         os.makedirs(output_dir, exist_ok=True)
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -493,12 +496,15 @@ class RiskControlSystem:
 
 def main():
     """主函数"""
+    from pathlib import Path
+    project_root = Path(__file__).parent.parent.parent
+    
     print("=" * 70)
     print("🚀 P1风控体系分析系统")
     print("=" * 70)
     
     rcs = RiskControlSystem(
-        data_path='/Users/variya/.openclaw/workspace/projects/a-stock-advisor/data/mock_data.pkl'
+        data_path=str(project_root / 'data' / 'mock_data.pkl')
     )
     
     results = rcs.run_full_analysis()

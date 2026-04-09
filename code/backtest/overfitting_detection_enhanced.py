@@ -472,8 +472,11 @@ class EnhancedOverfittingDetector:
         
         return self.results
 
-    def save_report(self, output_dir: str = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor/reports'):
+    def save_report(self, output_dir: str = None):
         """保存报告"""
+        if output_dir is None:
+            from pathlib import Path
+            output_dir = str(Path(__file__).parent.parent.parent / 'reports')
         os.makedirs(output_dir, exist_ok=True)
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -570,12 +573,15 @@ class EnhancedOverfittingDetector:
 
 def main():
     """主函数"""
+    from pathlib import Path
+    project_root = Path(__file__).parent.parent.parent
+    
     print("=" * 70)
     print("🚀 P0过拟合缓解检测系统")
     print("=" * 70)
     
     detector = EnhancedOverfittingDetector(
-        data_path='/Users/variya/.openclaw/workspace/projects/a-stock-advisor/data/mock_data.pkl'
+        data_path=str(project_root / 'data' / 'mock_data.pkl')
     )
     
     results = detector.run_full_detection()

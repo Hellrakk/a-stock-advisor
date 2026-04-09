@@ -5,9 +5,10 @@
 """
 import sys
 import os
+from pathlib import Path
 
-# 添加项目根目录到Python路径
-PROJECT_ROOT = "/Users/variya/.openclaw/workspace/projects/a-stock-advisor"
+# 添加项目根目录到Python路径（动态获取）
+PROJECT_ROOT = str(Path(__file__).parent.parent)
 sys.path.insert(0, PROJECT_ROOT)
 
 try:

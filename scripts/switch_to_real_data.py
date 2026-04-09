@@ -12,7 +12,8 @@ from datetime import datetime
 import json
 
 # 配置
-DATA_DIR = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor/data'
+from pathlib import Path
+DATA_DIR = str(Path(__file__).parent.parent / 'data')
 REAL_DATA = os.path.join(DATA_DIR, 'real_stock_data.pkl')
 SIM_DATA_BACKUP = os.path.join(DATA_DIR, 'real_stock_data_simulated.pkl.bak')
 AKSHARE_DATA = os.path.join(DATA_DIR, 'akshare_real_data_fixed.pkl')

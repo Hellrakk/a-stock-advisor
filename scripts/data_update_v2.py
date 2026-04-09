@@ -7,10 +7,16 @@
 
 import sys
 import os
+import argparse
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from datetime import datetime, timedelta
 import logging
@@ -19,15 +25,127 @@ import numpy as np
 import pickle
 import json
 
+log_dir = project_root / 'logs'
+log_dir.mkdir(exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/data_update_v3.log'),
+        logging.FileHandler(log_dir / 'data_update_v3.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+def _first_existing_column(df, candidates):
+    for column in candidates:
+        if column in df.columns:
+            return column
+    return None
+
+
+def _load_stock_list(ak_module, limit):
+    sources = (
+        ("stock_info_a_code_name", ("code", "symbol", "\u4ee3\u7801"), ("name", "\u540d\u79f0")),
+        ("stock_zh_a_spot", ("\u4ee3\u7801", "code", "symbol"), ("\u540d\u79f0", "name")),
+        ("stock_zh_a_spot_em", ("\u4ee3\u7801", "code", "symbol"), ("\u540d\u79f0", "name")),
+    )
+
+    errors = []
+    for method_name, code_candidates, name_candidates in sources:
+        method = getattr(ak_module, method_name, None)
+        if method is None:
+            continue
+
+        try:
+            stock_list = method()
+            code_column = _first_existing_column(stock_list, code_candidates)
+            name_column = _first_existing_column(stock_list, name_candidates)
+            if code_column is None:
+                raise KeyError(f"{method_name} missing stock code column: {list(stock_list.columns)}")
+
+            normalized = stock_list.rename(columns={code_column: "stock_code"}).copy()
+            if name_column is not None:
+                normalized = normalized.rename(columns={name_column: "stock_name"})
+            else:
+                normalized["stock_name"] = normalized["stock_code"]
+
+            normalized["stock_code"] = normalized["stock_code"].astype(str).str.zfill(6)
+            normalized["stock_name"] = normalized["stock_name"].fillna(normalized["stock_code"]).astype(str)
+            normalized = normalized[["stock_code", "stock_name"]].dropna(subset=["stock_code"]).drop_duplicates("stock_code")
+            return normalized.head(limit), method_name
+        except Exception as exc:
+            errors.append(f"{method_name}: {exc}")
+
+    raise RuntimeError(" ; ".join(errors))
+
+
+def _to_bs_code(stock_code):
+    stock_code = str(stock_code).zfill(6)
+    return f"sh.{stock_code}" if stock_code.startswith("6") else f"sz.{stock_code}"
+
+
+def _fetch_history_from_baostock(baostock_module, stock_code, start_date, end_date):
+    rs = baostock_module.query_history_k_data_plus(
+        _to_bs_code(stock_code),
+        "date,code,open,high,low,close,volume,amount,turn",
+        start_date=start_date,
+        end_date=end_date,
+        frequency="d",
+        adjustflag="2",
+    )
+    if rs.error_code != "0":
+        raise RuntimeError(f"baostock query failed: {rs.error_msg}")
+
+    rows = []
+    while rs.error_code == "0" and rs.next():
+        rows.append(rs.get_row_data())
+
+    if not rows:
+        return None
+
+    df = pd.DataFrame(
+        rows,
+        columns=["date", "stock_code_api", "open", "high", "low", "close", "volume", "amount", "turnover"],
+    )
+    for column in ["open", "high", "low", "close", "volume", "amount", "turnover"]:
+        df[column] = pd.to_numeric(df[column], errors="coerce")
+
+    prev_close = df["close"].shift(1)
+    df["amplitude"] = ((df["high"] - df["low"]) / prev_close.replace(0, np.nan)) * 100
+    df["change_pct"] = df["close"].pct_change() * 100
+    df["change_amount"] = df["close"].diff()
+    return df[["date", "stock_code_api", "open", "close", "high", "low", "volume", "amount", "amplitude", "change_pct", "change_amount", "turnover"]]
+
+
+def _fetch_history_with_fallback(ak_module, baostock_module, stock_code, start_date, end_date):
+    errors = []
+
+    try:
+        df = ak_module.stock_zh_a_hist(
+            symbol=stock_code,
+            period="daily",
+            start_date=start_date.replace("-", ""),
+            end_date=end_date.replace("-", ""),
+            adjust="qfq",
+        )
+        if df is not None and len(df) > 0:
+            df.columns = ["date", "stock_code_api", "open", "close", "high", "low", "volume", "amount", "amplitude", "change_pct", "change_amount", "turnover"]
+            return df, "akshare"
+    except Exception as exc:
+        errors.append(f"akshare: {exc}")
+
+    if baostock_module is not None:
+        try:
+            df = _fetch_history_from_baostock(baostock_module, stock_code, start_date, end_date)
+            if df is not None and len(df) > 0:
+                return df, "baostock"
+        except Exception as exc:
+            errors.append(f"baostock: {exc}")
+
+    raise RuntimeError(" ; ".join(errors) if errors else "no history source returned data")
 
 
 def fetch_real_stock_data_from_akshare(n_stocks=500, days=365):
@@ -46,34 +164,43 @@ def fetch_real_stock_data_from_akshare(n_stocks=500, days=365):
     all_data = []
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=days*2)).strftime('%Y-%m-%d')
+    baostock_module = None
+    baostock_logged_in = False
+
+    try:
+        import baostock as bs
+        login_result = bs.login()
+        if login_result.error_code == "0":
+            baostock_module = bs
+            baostock_logged_in = True
+            logger.info("✓ Baostock login success")
+        else:
+            logger.warning("Baostock login failed: %s", login_result.error_msg)
+    except Exception as exc:
+        logger.warning("Baostock unavailable: %s", exc)
     
     try:
         logger.info("📥 获取A股股票列表...")
-        stock_list = ak.stock_zh_a_spot_em()
+        stock_list, source_name = _load_stock_list(ak, n_stocks)
+        logger.info("Stock list source: %s", source_name)
         logger.info(f"✓ 获取到 {len(stock_list)} 只股票")
         
-        stock_list = stock_list.head(n_stocks)
-        
         for idx, row in stock_list.iterrows():
-            stock_code = row['代码']
-            stock_name = row['名称']
+            stock_code = row["stock_code"]
+            stock_name = row["stock_name"]
             
             try:
                 logger.info(f"  [{idx+1}/{len(stock_list)}] 获取 {stock_name}({stock_code})...")
-                
-                df = ak.stock_zh_a_hist(
-                    symbol=stock_code,
-                    period="daily",
-                    start_date=start_date.replace('-', ''),
-                    end_date=end_date.replace('-', ''),
-                    adjust="qfq"
-                )
-                
-                if df is not None and len(df) > 0:
-                    # AKShare返回12列：日期、股票代码、开盘、收盘、最高、最低、成交量、成交额、振幅、涨跌幅、涨跌额、换手率
-                    df.columns = ['date', 'stock_code_api', 'open', 'close', 'high', 'low',
-                                  'volume', 'amount', 'amplitude', 'change_pct', 'change_amount', 'turnover']
 
+                df, history_source = _fetch_history_with_fallback(
+                    ak_module=ak,
+                    baostock_module=baostock_module,
+                    stock_code=stock_code,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+
+                if df is not None and len(df) > 0:
                     df['stock_code'] = stock_code
                     df['stock_name'] = stock_name
                     df['date'] = pd.to_datetime(df['date'])
@@ -81,7 +208,7 @@ def fetch_real_stock_data_from_akshare(n_stocks=500, days=365):
                     df = calculate_technical_factors(df)
                     
                     all_data.append(df)
-                    logger.info(f"    ✓ 获取 {len(df)} 条记录")
+                    logger.info("    ✓ 获取 %s 条记录 (source=%s)", len(df), history_source)
                 else:
                     logger.warning(f"    ⚠️ 无数据")
                     
@@ -100,6 +227,12 @@ def fetch_real_stock_data_from_akshare(n_stocks=500, days=365):
     except Exception as e:
         logger.error(f"❌ 获取数据失败: {e}", exc_info=True)
         return None
+    finally:
+        if baostock_logged_in and baostock_module is not None:
+            try:
+                baostock_module.logout()
+            except Exception:
+                pass
 
 
 def calculate_technical_factors(df):
@@ -131,6 +264,11 @@ def calculate_technical_factors(df):
 
 def main():
     """主函数"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--stock-count", type=int, default=500)
+    parser.add_argument("--days", type=int, default=365)
+    args = parser.parse_args()
+
     logger.info("="*60)
     logger.info("数据更新任务开始 - 使用真实数据源")
     logger.info("="*60)
@@ -138,7 +276,7 @@ def main():
     os.makedirs('logs', exist_ok=True)
     os.makedirs('data', exist_ok=True)
     
-    df = fetch_real_stock_data_from_akshare(n_stocks=500, days=365)
+    df = fetch_real_stock_data_from_akshare(n_stocks=args.stock_count, days=args.days)
     
     if df is not None and len(df) > 0:
         output_file = 'data/akshare_real_data_fixed.pkl'

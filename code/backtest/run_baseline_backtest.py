@@ -8,9 +8,10 @@ import numpy as np
 import pickle
 import os
 from datetime import datetime
+from pathlib import Path
 
-# 工作目录
-WORK_DIR = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor'
+# 工作目录（动态获取）
+WORK_DIR = str(Path(__file__).parent.parent.parent)
 os.chdir(WORK_DIR)
 
 # 导入模块

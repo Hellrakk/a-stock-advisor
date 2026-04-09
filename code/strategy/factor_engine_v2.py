@@ -428,10 +428,13 @@ def calculate_all_new_factors(df: pd.DataFrame) -> pd.DataFrame:
 
 if __name__ == '__main__':
     # 测试代码
+    from pathlib import Path
     import pickle
+    
+    project_root = Path(__file__).parent.parent.parent
 
     print("加载测试数据...")
-    with open('/Users/variya/.openclaw/workspace/projects/a-stock-advisor/data/real_stock_data.pkl', 'rb') as f:
+    with open(str(project_root / 'data' / 'real_stock_data.pkl'), 'rb') as f:
         df = pickle.load(f)
 
     print(f"原始数据形状: {df.shape}")

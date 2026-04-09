@@ -34,19 +34,20 @@ from scipy import stats
 from sklearn.model_selection import TimeSeriesSplit
 
 
-# 配置日志
+# 配置日志（动态获取路径）
+_project_root = Path(__file__).parent.parent.parent
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] [%(name)s] %(message)s',
     handlers=[
-        logging.FileHandler('/Users/variya/.openclaw/workspace/projects/a-stock-advisor/logs/innovation_lab.log'),
+        logging.FileHandler(str(_project_root / 'logs' / 'innovation_lab.log')),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
-# 工作目录
-WORK_DIR = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor'
+# 工作目录（动态获取）
+WORK_DIR = str(_project_root)
 os.chdir(WORK_DIR)
 
 # 创新评价标准

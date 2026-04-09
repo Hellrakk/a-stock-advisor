@@ -28,15 +28,20 @@
 
 创建/编辑配置文件:
 ```bash
-cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor
-cat > config/feishu_config.json << 'EOF'
+cd <项目根目录>
+# Windows PowerShell:
+cd E:\a-stock-advisor
+# 或使用相对路径
+```
+
+编辑 `config/feishu_config.json`:
+```json
 {
   "webhook_url": "你的新webhook地址",
   "enabled": true,
   "push_time": "18:35",
   "timezone": "Asia/Shanghai"
 }
-EOF
 ```
 
 将"你的新webhook地址"替换为刚才复制的实际地址。

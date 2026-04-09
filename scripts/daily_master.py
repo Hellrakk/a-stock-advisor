@@ -20,6 +20,11 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'code'))
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from datetime import datetime, timedelta
 import logging
 import json
@@ -46,11 +51,15 @@ try:
 except ImportError:
     FACTOR_RISK_AVAILABLE = False
 
+project_root = os.path.dirname(os.path.dirname(__file__))
+log_dir = os.path.join(project_root, 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/daily_master.log'),
+        logging.FileHandler(os.path.join(log_dir, 'daily_master.log'), encoding='utf-8'),
         logging.StreamHandler()
     ]
 )

@@ -14,6 +14,11 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 project_root = Path(__file__).parent
 scripts_dir = project_root / 'scripts'
 code_dir = project_root / 'code'
@@ -474,7 +479,7 @@ def fetch_real_data():
         
     except ImportError as e:
         print_error(f"导入真实数据模块失败: {e}")
-        print_info("请确保已安装所需依赖: pip install akshare baostock")
+        print_info("「真实数据获取」模块尚未实现。请使用「数据工程 → 1. 数据更新」调用 data_update_v2.py 获取数据。")
         return False
     except Exception as e:
         print_error(f"获取真实数据失败: {e}")
@@ -639,6 +644,9 @@ def alternative_data_framework():
             data = manager.get_margin_trading_data()
             print_success(f"获取成功: {len(data)} 条记录")
             
+    except ImportError:
+        print_error("「另类数据框架」模块尚未实现。")
+        print_info("当前数据更新请通过「数据工程 → 1. 数据更新」使用 data_update_v2.py")
     except Exception as e:
         print_error(f"另类数据获取失败: {e}")
 
@@ -4184,11 +4192,11 @@ def show_menu():
         elif choice == '8':
             daily_master()
         elif choice == '9':
-            print_info("执行盘前推送...")
-            script_path = scripts_dir / 'unified_daily_push.py'
+            print_info("执行盘前推送（生成+飞书推送）...")
+            script_path = scripts_dir / 'daily_master.py'
             try:
                 result = subprocess.run(
-                    [sys.executable, str(script_path), '--type', 'morning'],
+                    [sys.executable, str(script_path)],
                     cwd=project_root,
                     capture_output=True,
                     text=True
@@ -4200,11 +4208,11 @@ def show_menu():
             except Exception as e:
                 print_error(f"执行失败: {e}")
         elif choice == '10':
-            print_info("执行日报推送...")
-            script_path = scripts_dir / 'unified_daily_push.py'
+            print_info("执行日报推送（生成+飞书推送）...")
+            script_path = scripts_dir / 'daily_master.py'
             try:
                 result = subprocess.run(
-                    [sys.executable, str(script_path), '--type', 'evening'],
+                    [sys.executable, str(script_path)],
                     cwd=project_root,
                     capture_output=True,
                     text=True

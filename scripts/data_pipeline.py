@@ -30,12 +30,120 @@ from sklearn.linear_model import LinearRegression
 import warnings
 warnings.filterwarnings('ignore')
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 try:
     import akshare as ak
     AKSHARE_AVAILABLE = True
 except ImportError:
     AKSHARE_AVAILABLE = False
     print("⚠️ AKShare未安装，数据下载功能不可用")
+
+
+def _first_existing_column(df, candidates):
+    for column in candidates:
+        if column in df.columns:
+            return column
+    return None
+
+
+def _load_stock_codes(ak_module, limit):
+    sources = (
+        ("stock_info_a_code_name", ("code", "symbol", "\u4ee3\u7801")),
+        ("stock_zh_a_spot", ("\u4ee3\u7801", "code", "symbol")),
+        ("stock_zh_a_spot_em", ("\u4ee3\u7801", "code", "symbol")),
+    )
+
+    errors = []
+    for method_name, code_candidates in sources:
+        method = getattr(ak_module, method_name, None)
+        if method is None:
+            continue
+
+        try:
+            stock_list = method()
+            code_column = _first_existing_column(stock_list, code_candidates)
+            if code_column is None:
+                raise KeyError(f"{method_name} missing stock code column: {list(stock_list.columns)}")
+
+            stock_codes = (
+                stock_list[code_column]
+                .astype(str)
+                .str.zfill(6)
+                .dropna()
+                .drop_duplicates()
+                .head(limit)
+                .tolist()
+            )
+            return stock_codes, method_name
+        except Exception as exc:
+            errors.append(f"{method_name}: {exc}")
+
+    raise RuntimeError(" ; ".join(errors))
+
+
+def _to_bs_code(stock_code):
+    stock_code = str(stock_code).zfill(6)
+    return f"sh.{stock_code}" if stock_code.startswith("6") else f"sz.{stock_code}"
+
+
+def _fetch_history_from_baostock(baostock_module, stock_code, start_date, end_date):
+    rs = baostock_module.query_history_k_data_plus(
+        _to_bs_code(stock_code),
+        "date,open,high,low,close,volume,amount,turn",
+        start_date=f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:8]}",
+        end_date=f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:8]}",
+        frequency="d",
+        adjustflag="2",
+    )
+    if rs.error_code != "0":
+        raise RuntimeError(f"baostock query failed: {rs.error_msg}")
+
+    rows = []
+    while rs.error_code == "0" and rs.next():
+        rows.append(rs.get_row_data())
+
+    if not rows:
+        return None
+
+    df = pd.DataFrame(rows, columns=["日期", "开盘", "最高", "最低", "收盘", "成交量", "成交额", "换手率"])
+    for column in ["开盘", "最高", "最低", "收盘", "成交量", "成交额", "换手率"]:
+        df[column] = pd.to_numeric(df[column], errors="coerce")
+
+    prev_close = df["收盘"].shift(1)
+    df["振幅"] = ((df["最高"] - df["最低"]) / prev_close.replace(0, np.nan)) * 100
+    df["涨跌幅"] = df["收盘"].pct_change() * 100
+    return df[["日期", "开盘", "收盘", "最高", "最低", "成交量", "成交额", "振幅", "涨跌幅", "换手率"]]
+
+
+def _fetch_history_frame(ak_module, baostock_module, stock_code, start_date, end_date):
+    errors = []
+
+    try:
+        df = ak_module.stock_zh_a_hist(
+            symbol=stock_code,
+            period="daily",
+            start_date=start_date,
+            end_date=end_date,
+            adjust="qfq",
+        )
+        if df is not None and len(df) > 0:
+            return df, "akshare"
+    except Exception as exc:
+        errors.append(f"akshare: {exc}")
+
+    if baostock_module is not None:
+        try:
+            df = _fetch_history_from_baostock(baostock_module, stock_code, start_date, end_date)
+            if df is not None and len(df) > 0:
+                return df, "baostock"
+        except Exception as exc:
+            errors.append(f"baostock: {exc}")
+
+    raise RuntimeError(" ; ".join(errors) if errors else "no history source returned data")
 
 
 class DataPipeline:
@@ -74,13 +182,26 @@ class DataPipeline:
         
         # 获取股票列表
         try:
-            stock_list = ak.stock_zh_a_spot_em()
-            stock_list = stock_list.head(stock_count)
-            stock_codes = stock_list['代码'].tolist()
+            stock_codes, source_name = _load_stock_codes(ak, stock_count)
+            print(f"股票列表来源: {source_name}")
             print(f"✓ 获取到 {len(stock_codes)} 只股票")
         except Exception as e:
             print(f"❌ 获取股票列表失败: {e}")
             return False
+
+        baostock_module = None
+        baostock_logged_in = False
+        try:
+            import baostock as bs
+            login_result = bs.login()
+            if login_result.error_code == "0":
+                baostock_module = bs
+                baostock_logged_in = True
+                print("✓ Baostock 登录成功")
+            else:
+                print(f"⚠️ Baostock 登录失败: {login_result.error_msg}")
+        except Exception as e:
+            print(f"⚠️ Baostock 不可用: {e}")
         
         # 加载进度
         completed = set()
@@ -99,30 +220,38 @@ class DataPipeline:
         
         # 下载数据
         all_data = []
-        for i, code in enumerate(pending):
-            try:
-                df = ak.stock_zh_a_hist(
-                    symbol=code,
-                    period="daily",
-                    start_date=start_date,
-                    end_date=end_date,
-                    adjust="qfq"
-                )
-                
-                if df is not None and len(df) > 0:
-                    df['stock_code'] = code
-                    all_data.append(df)
-                    completed.add(code)
-                
-                # 保存进度
-                if (i + 1) % 20 == 0:
-                    self._save_progress(completed)
-                    print(f"进度: {i+1}/{len(pending)} ({(i+1)/len(pending)*100:.1f}%)")
-                
-                time.sleep(0.3)
-                
-            except Exception as e:
-                print(f"下载 {code} 失败: {e}")
+        try:
+            for i, code in enumerate(pending):
+                try:
+                    df, history_source = _fetch_history_frame(
+                        ak_module=ak,
+                        baostock_module=baostock_module,
+                        stock_code=code,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+
+                    if df is not None and len(df) > 0:
+                        df['stock_code'] = code
+                        all_data.append(df)
+                        completed.add(code)
+                        print(f"已获取 {code}: {len(df)} 条 (source={history_source})")
+
+                    # 保存进度
+                    if (i + 1) % 20 == 0:
+                        self._save_progress(completed)
+                        print(f"进度: {i+1}/{len(pending)} ({(i+1)/len(pending)*100:.1f}%)")
+
+                    time.sleep(0.3)
+
+                except Exception as e:
+                    print(f"下载 {code} 失败: {e}")
+        finally:
+            if baostock_logged_in and baostock_module is not None:
+                try:
+                    baostock_module.logout()
+                except Exception:
+                    pass
         
         # 合并并保存
         if all_data:
@@ -132,16 +261,24 @@ class DataPipeline:
             if os.path.exists(self.data_file):
                 with open(self.data_file, 'rb') as f:
                     existing_df = pickle.load(f)
-                final_df = pd.concat([existing_df, final_df], ignore_index=True)
-                final_df = final_df.drop_duplicates(subset=['日期', 'stock_code'])
+                existing_is_raw = '日期' in existing_df.columns and 'date' not in existing_df.columns
+                if existing_is_raw:
+                    final_df = pd.concat([existing_df, final_df], ignore_index=True)
+                    final_df = final_df.drop_duplicates(subset=['日期', 'stock_code'])
+                else:
+                    print("⚠️ 现有数据文件已是处理后结构，下载阶段不直接合并，避免污染主数据文件")
             
             with open(self.data_file, 'wb') as f:
                 pickle.dump(final_df, f)
-            
+
             print(f"\n✓ 数据已保存: {len(final_df)} 条记录, {final_df['stock_code'].nunique()} 只股票")
-        
-        self._save_progress(completed, status='completed')
-        return True
+
+            self._save_progress(completed, status='completed')
+            return True
+
+        print("❌ 本轮没有下载到任何有效数据")
+        self._save_progress(completed, status='failed')
+        return False
     
     def process_data(self) -> pd.DataFrame:
         """处理数据：标准化列名、计算基础因子"""

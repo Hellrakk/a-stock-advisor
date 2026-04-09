@@ -108,6 +108,9 @@ def analyze_all_factors(df: pd.DataFrame) -> pd.DataFrame:
 
 def main():
     """主函数"""
+    from pathlib import Path
+    project_root = Path(__file__).parent.parent.parent
+    
     print("=" * 80)
     print("因子诊断系统 - IC值分析")
     print("=" * 80)
@@ -115,7 +118,7 @@ def main():
 
     # 加载数据
     print("加载数据...")
-    with open('/Users/variya/.openclaw/workspace/projects/a-stock-advisor/data/real_stock_data.pkl', 'rb') as f:
+    with open(str(project_root / 'data' / 'real_stock_data.pkl'), 'rb') as f:
         df = pickle.load(f)
 
     print(f"数据形状: {df.shape}")
@@ -154,15 +157,16 @@ def main():
     print()
 
     # 保存结果
-    output_file = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor/data/factor_ic_report.csv'
+    output_file = str(project_root / 'data' / 'factor_ic_report.csv')
     results_df.to_csv(output_file, index=False, encoding='utf-8-sig')
     print(f"详细结果已保存到: {output_file}")
 
     # 保存有效因子列表
     valid_factors = results_df[results_df['is_valid']]['factor'].tolist()
-    with open('/Users/variya/.openclaw/workspace/projects/a-stock-advisor/data/valid_factors.txt', 'w') as f:
+    valid_factors_file = str(project_root / 'data' / 'valid_factors.txt')
+    with open(valid_factors_file, 'w') as f:
         f.write('\n'.join(valid_factors))
-    print(f"有效因子列表已保存到: /Users/variya/.openclaw/workspace/projects/a-stock-advisor/data/valid_factors.txt")
+    print(f"有效因子列表已保存到: {valid_factors_file}")
     print()
 
 

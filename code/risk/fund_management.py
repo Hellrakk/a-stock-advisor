@@ -327,8 +327,11 @@ class FundManager:
         
         return report
     
-    def save_report(self, output_dir: str = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor/reports'):
+    def save_report(self, output_dir: str = None):
         """保存报告"""
+        if output_dir is None:
+            from pathlib import Path
+            output_dir = str(Path(__file__).parent.parent.parent / 'reports')
         os.makedirs(output_dir, exist_ok=True)
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

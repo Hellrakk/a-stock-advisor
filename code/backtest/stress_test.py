@@ -361,13 +361,16 @@ class StressTest:
         
         return ''.join(lines)
     
-    def save_report(self, output_dir: str = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor/reports'):
+    def save_report(self, output_dir: str = None):
         """
         保存压力测试报告
         
         Args:
             output_dir: 输出目录
         """
+        if output_dir is None:
+            from pathlib import Path
+            output_dir = str(Path(__file__).parent.parent.parent / 'reports')
         os.makedirs(output_dir, exist_ok=True)
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -392,12 +395,15 @@ class StressTest:
 
 def main():
     """主函数"""
+    from pathlib import Path
+    project_root = Path(__file__).parent.parent.parent
+    
     print("=" * 70)
     print("🚀 压力测试系统")
     print("=" * 70)
     
     st = StressTest(
-        data_path='/Users/variya/.openclaw/workspace/projects/a-stock-advisor/data/mock_data.pkl'
+        data_path=str(project_root / 'data' / 'mock_data.pkl')
     )
     
     results = st.run_all_stress_tests()

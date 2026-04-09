@@ -13,7 +13,8 @@
 
 import sys
 import os
-sys.path.insert(0, '/Users/variya/.openclaw/workspace/projects/a-stock-advisor')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from code.strategy.innovation_lab import InnovationLab
 from code.strategy.alpha_factory import AlphaGenerator

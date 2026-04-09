@@ -29,8 +29,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 工作目录
-WORK_DIR = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor'
+# 工作目录（动态获取）
+WORK_DIR = str(Path(__file__).parent.parent.parent)
 os.chdir(WORK_DIR)
 
 # 数据质量阈值配置

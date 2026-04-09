@@ -246,8 +246,10 @@ def fix_data_quality(input_file, output_file):
 if __name__ == "__main__":
     import sys
 
-    input_file = "/Users/variya/.openclaw/workspace/projects/a-stock-advisor/data/real_stock_data.pkl"
-    output_file = "/Users/variya/.openclaw/workspace/projects/a-stock-advisor/data/akshare_real_data_fixed.pkl"
+    from pathlib import Path
+    project_root = Path(__file__).parent.parent
+    input_file = str(project_root / 'data' / 'real_stock_data.pkl')
+    output_file = str(project_root / 'data' / 'akshare_real_data_fixed.pkl')
 
     if len(sys.argv) > 1:
         input_file = sys.argv[1]

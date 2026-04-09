@@ -18,8 +18,9 @@ import sys
 import argparse
 from typing import Dict, List, Optional, Tuple
 
-# 根目录
-WORK_DIR = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor'
+# 根目录（动态获取）
+from pathlib import Path
+WORK_DIR = str(Path(__file__).parent.parent.parent)
 os.chdir(WORK_DIR)
 
 import pandas as pd

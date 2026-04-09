@@ -29,8 +29,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 工作目录
-WORK_DIR = '/Users/variya/.openclaw/workspace/projects/a-stock-advisor'
+# 工作目录（动态获取）
+from pathlib import Path
+WORK_DIR = str(Path(__file__).parent.parent.parent)
 os.chdir(WORK_DIR)
 
 # 真实A股市场特征（基于2019-2024历史数据）
