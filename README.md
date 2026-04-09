@@ -55,6 +55,64 @@
 
 ## 🚀 快速开始
 
+## 🔁 每日流程复现（Windows）
+
+> 目标：在一台新 Windows 机器上，从 0 到生成日报，并可选推送到飞书。
+
+### 0）环境准备（仅首次）
+
+```powershell
+cd <path-to-a-stock-advisor>
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+### 1）更新/准备数据（推荐）
+
+```powershell
+.\.venv\Scripts\python.exe scripts\data_update_v2.py --stock-count 20 --days 120
+```
+
+数据文件通常在 `data/` 下生成（例如 `data/akshare_real_data_fixed.pkl`）。
+
+### 2）生成每日报告（本地复现）
+
+```powershell
+.\.venv\Scripts\python.exe scripts\daily_master.py
+```
+
+输出：
+- 报告：`reports/morning_push_YYYYMMDD_HHMM.md`
+- 日志：`logs/daily_master.log`
+
+> 说明：如果你看到“因子门控触发 / ML 模型未训练”等提示，代表系统在降级运行，但仍会生成报告（工程链路不中断）。
+
+### 3）每日推送到飞书（可选）
+
+1. 按 `docs/operation/FEISHU_SETUP.md` 配置飞书机器人 Webhook
+2. 在本地创建 `config/feishu_config.json`（已在 `.gitignore` 中忽略，不会被提交）
+
+示例（不启用签名）：
+```json
+{
+  "enabled": true,
+  "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxxx",
+  "secret": "",
+  "timezone": "Asia/Shanghai"
+}
+```
+
+然后执行（会先生成日报，再推送最新报告）：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\daily_push.py --mode morning
+```
+
+### 4）自动化（Windows 计划任务）
+
+- 安装/排错：见 `docs/operation/WINDOWS_TASKS.md`
+
+
 > Windows 计划任务（定时任务）安装与排错：见 `docs/operation/WINDOWS_TASKS.md`
 
 

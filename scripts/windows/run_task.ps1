@@ -16,8 +16,8 @@ if (-not (Test-Path $PythonExe)) {
 }
 
 $TaskMap = @{
-    "morning_master_push" = @{ Command = @("scripts\daily_master.py"); Log = "task_morning_master.log" }
-    "daily_selection_push" = @{ Command = @("scripts\daily_master.py"); Log = "task_daily_selection.log" }
+    "morning_master_push" = @{ Command = @("scripts\daily_push.py", "--mode", "morning"); Log = "task_morning_master.log" }
+    "daily_selection_push" = @{ Command = @("scripts\daily_push.py", "--mode", "evening"); Log = "task_daily_selection.log" }
     "health_check" = @{ Command = @("scripts\health_check.py"); Log = "task_health_check.log" }
     "monitor_collector" = @{ Command = @("scripts\monitor_collector.py"); Log = "task_monitor_collector.log" }
     "weekly_backtest" = @{ Command = @("scripts\run_backtest.py"); Log = "task_backtest.log" }
