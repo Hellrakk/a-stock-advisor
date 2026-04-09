@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxxx",
+  "secret": "",
+  "push_time": "18:30",
+  "timezone": "Asia/Shanghai"
+}
