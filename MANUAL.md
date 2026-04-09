@@ -33,6 +33,16 @@
 
 ## 1. 快速开始
 
+### Windows（PowerShell）快速启动
+
+```powershell
+cd <path-to-a-stock-advisor>
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe a_stock_manager.py
+```
+
+
 ### 1.1 完整量化流程
 
 #### 1.1.1 核心流程
@@ -63,7 +73,7 @@
 
 ```bash
 # 进入项目目录
-cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor
+cd <path-to-a-stock-advisor>
 
 # 运行统一主入口（推荐方式）
 python3 a_stock_manager.py
@@ -2128,7 +2138,7 @@ python3 scripts/health_check.py
 
 **使用方法**：
 ```bash
-cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor
+cd <path-to-a-stock-advisor>
 python3 scripts/daily_master.py
 ```
 
@@ -2243,7 +2253,7 @@ python3 scripts/daily_master.py
   "name": "morning_master_push",
   "description": "早晨主控流程（8:00）",
   "schedule": "0 8 * * 1-5",
-  "command": "cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor && /opt/homebrew/bin/python3 scripts/daily_master.py >> logs/morning_master.log 2>&1"
+  "command": "cd <path-to-a-stock-advisor> && /opt/homebrew/bin/python3 scripts/daily_master.py >> logs/morning_master.log 2>&1"
 }
 ```
 

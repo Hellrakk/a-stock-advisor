@@ -55,14 +55,31 @@
 
 ## 🚀 快速开始
 
+> Windows 计划任务（定时任务）安装与排错：见 `docs/operation/WINDOWS_TASKS.md`
+
+
 ### 1. 运行统一主入口（推荐）
 
-```bash
-# 进入项目目录
-cd /Users/variya/.openclaw/workspace/projects/a-stock-advisor
+```powershell
+# Windows（推荐）：进入项目目录
+cd <path-to-a-stock-advisor>
 
-# 运行主入口（推荐方式）
-python3 a_stock_manager.py
+# 创建虚拟环境（首次）
+python -m venv .venv
+
+# 安装依赖
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# 运行统一主入口
+.\.venv\Scripts\python.exe a_stock_manager.py
+```
+
+```bash
+# macOS / Linux（可选）
+cd <path-to-a-stock-advisor>
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt
+./.venv/bin/python a_stock_manager.py
 ```
 
 主入口会显示交互式菜单，包含以下功能：

@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$ProjectRoot = "E:\a-stock-advisor"
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\.." )).Path
 $PythonExe = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $LogsDir = Join-Path $ProjectRoot "logs"
 

@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$ProjectRoot = "E:\a-stock-advisor"
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\.." )).Path
 $Runner = Join-Path $ProjectRoot "scripts\windows\run_task.ps1"
 $PowerShellExe = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 
